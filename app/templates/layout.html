@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Wonder Naga{% if page_title %} · {{ page_title }}{% endif %}</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/main.css') }}"
+    />
+    {% block head %}{% endblock %}
+  </head>
+  <body>
+    <div class="app-shell">
+      <!-- ── SIDEBAR ── -->
+      <aside class="sidebar">
+        <div class="sidebar-brand">Wonder <span>Naga</span></div>
+        <ul class="nav-list">
+          <li class="nav-item {% if active_page == 'home' %}active{% endif %}">
+            <a href="{{ url_for('index') }}"
+              ><span class="nav-icon">⌂</span> Home</a
+            >
+          </li>
+          <li
+            class="nav-item {% if active_page == 'restaurants' %}active{% endif %}"
+          >
+            <a href="{{ url_for('restaurants') }}"
+              ><span class="nav-icon">🍽</span> Restaurants</a
+            >
+          </li>
+          <li class="nav-item {% if active_page == 'cafes' %}active{% endif %}">
+            <a href="{{ url_for('cafes') }}"
+              ><span class="nav-icon">☕</span> Cafes</a
+            >
+          </li>
+          <li
+            class="nav-item {% if active_page == 'attractions' %}active{% endif %}"
+          >
+            <a href="{{ url_for('attractions') }}"
+              ><span class="nav-icon">🗺</span> Attractions</a
+            >
+          </li>
+          <li class="nav-item {% if active_page == 'add' %}active{% endif %}">
+            <a href="{{ url_for('add') }}"
+              ><span class="nav-icon">＋</span> Add Recommendation</a
+            >
+          </li>
+        </ul>
+        <div class="sidebar-footer">
+          <a class="nav-item" href="{{ url_for('logout') }}"
+            ><span class="nav-icon">⎋</span> Sign Out</a
+          >
+        </div>
+      </aside>
+
+      <!-- ── MAIN ── -->
+      <div class="main-area">
+        <div class="topbar">
+          <div class="topbar-title">
+            {{ page_title or 'Explore Wonder Naga' }}
+          </div>
+          <form
+            class="search-box"
+            method="GET"
+            action="{{ search_action or '#' }}"
+          >
+            <span class="search-icon">⌕</span>
+            <input
+              type="text"
+              name="q"
+              placeholder="Search places..."
+              value="{{ q or '' }}"
+            />
+          </form>
+        </div>
+
+        <div class="page-content">{% block content %}{% endblock %}</div>
+      </div>
+    </div>
+  </body>
+</html>

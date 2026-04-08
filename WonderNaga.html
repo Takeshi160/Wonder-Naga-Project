@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Wonder Naga</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.4.21/vue.global.prod.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0e0e0e;
+      --surface:  #191919;
+      --surface2: #242424;
+      --border:   #2e2e2e;
+      --accent:   #c9a84c;
+      --accent2:  #e8c97a;
+      --text:     #e8e2d9;
+      --muted:    #6b6560;
+      --danger:   #e05c5c;
+      --radius:   14px;
+      --sidebar:  220px;
+    }
+
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    /* ── AUTH ── */
+    .auth-wrap {
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at 50% 30%, #1e1a10 0%, var(--bg) 70%);
+    }
+    .auth-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 20px; padding: 48px 40px; width: 380px;
+      box-shadow: 0 40px 80px rgba(0,0,0,.6);
+    }
+    .auth-logo {
+      font-family: 'Playfair Display', serif; font-size: 13px;
+      letter-spacing: .18em; text-transform: uppercase;
+      color: var(--accent); text-align: center; margin-bottom: 6px;
+    }
+    .auth-title {
+      font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 700;
+      text-align: center; color: var(--text); margin-bottom: 32px;
+    }
+    .auth-tabs {
+      display: flex; gap: 4px; background: var(--bg);
+      border-radius: 10px; padding: 4px; margin-bottom: 28px;
+    }
+    .auth-tab {
+      flex: 1; padding: 9px; border-radius: 7px; border: none;
+      font-family: 'DM Sans', sans-serif; font-size: 13px;
+      cursor: pointer; transition: all .2s; background: transparent; color: var(--muted);
+    }
+    .auth-tab.active { background: var(--surface2); color: var(--text); }
+    .field-label {
+      font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 7px;
+    }
+    .field-input {
+      width: 100%; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 9px; padding: 12px 14px; color: var(--text);
+      font-size: 14px; font-family: 'DM Sans', sans-serif;
+      outline: none; transition: border-color .2s; margin-bottom: 18px;
+    }
+    .field-input:focus { border-color: var(--accent); }
+    .field-input.err { border-color: var(--danger); margin-bottom: 4px; }
+    .field-error { font-size: 11px; color: var(--danger); margin-bottom: 14px; }
+    .btn-primary {
+      width: 100%; padding: 13px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none; border-radius: 10px; color: #1a1200;
+      font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600;
+      cursor: pointer; letter-spacing: .04em;
+      transition: opacity .2s, transform .1s; margin-top: 4px;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .btn-primary:hover:not(:disabled) { opacity: .9; transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+
+    .alert-error {
+      background: rgba(224,92,92,.1); border: 1px solid rgba(224,92,92,.3);
+      border-radius: 9px; padding: 10px 14px;
+      font-size: 13px; color: var(--danger); margin-bottom: 16px;
+    }
+
+    /* ── SHELL ── */
+    .app-shell { display: flex; height: 100vh; overflow: hidden; }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: var(--sidebar); background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; padding: 28px 0; flex-shrink: 0;
+    }
+    .sidebar-brand {
+      font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 700;
+      color: var(--accent); padding: 0 22px 28px; border-bottom: 1px solid var(--border);
+    }
+    .sidebar-brand span { color: var(--text); }
+    .nav-list { list-style: none; padding: 18px 12px; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 11px 14px; border-radius: 9px; cursor: pointer;
+      color: var(--muted); font-size: 13.5px; transition: background .15s, color .15s;
+    }
+    .nav-item:hover { background: var(--surface2); color: var(--text); }
+    .nav-item.active { background: rgba(201,168,76,.13); color: var(--accent); font-weight: 500; }
+    .nav-icon { font-size: 15px; width: 20px; text-align: center; }
+    .sidebar-footer { padding: 18px 12px 0; border-top: 1px solid var(--border); }
+
+    /* ── MAIN ── */
+    .main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .topbar {
+      height: 62px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 28px; gap: 14px; flex-shrink: 0;
+    }
+    .topbar-title { font-family: 'Playfair Display', serif; font-size: 15px; color: var(--muted); }
+    .search-box {
+      margin-left: auto; display: flex; align-items: center;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 9px; padding: 0 14px; gap: 8px; height: 38px; width: 240px;
+    }
+    .search-box input {
+      background: none; border: none; outline: none;
+      color: var(--text); font-size: 13.5px; font-family: 'DM Sans', sans-serif; width: 100%;
+    }
+    .search-box input::placeholder { color: var(--muted); }
+    .search-icon { color: var(--muted); }
+    .page-content { flex: 1; overflow-y: auto; padding: 30px 32px; }
+    .page-heading { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 700; margin-bottom: 24px; }
+
+    /* ── STATES ── */
+    .state-box {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; min-height: 260px; gap: 12px; color: var(--muted);
+    }
+    .state-icon { font-size: 36px; }
+    .state-title { font-family: 'Playfair Display', serif; font-size: 17px; color: var(--text); }
+    .state-sub { font-size: 13px; }
+    .spinner {
+      width: 32px; height: 32px; border: 2px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .btn-retry {
+      padding: 9px 20px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); font-family: 'DM Sans', sans-serif;
+      font-size: 13px; cursor: pointer; transition: border-color .2s;
+    }
+    .btn-retry:hover { border-color: var(--accent); }
+
+    /* ── FEATURED ── */
+    .featured-banner {
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, #2a1f06 0%, #1a140a 60%, #0e0e0e 100%);
+      border: 1px solid var(--border); height: 200px;
+      display: flex; align-items: flex-end; padding: 22px 26px;
+      margin-bottom: 30px; position: relative; overflow: hidden;
+    }
+    .featured-banner::before {
+      content: ''; position: absolute; inset: 0;
+      background: repeating-linear-gradient(45deg,transparent,transparent 40px,rgba(201,168,76,.03) 40px,rgba(201,168,76,.03) 41px);
+    }
+    .featured-cover { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .35; }
+    .featured-content { position: relative; z-index: 1; }
+    .featured-tag { font-size: 10px; letter-spacing: .15em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
+    .featured-name { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 600; }
+    .featured-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .section-label { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+
+    /* ── GRID ── */
+    .store-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 32px; }
+    .store-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden; cursor: pointer;
+      transition: border-color .2s, transform .15s, box-shadow .2s;
+    }
+    .store-card:hover { border-color: var(--accent); transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,.4); }
+    .store-img { height: 110px; background: var(--surface2); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .store-img img { width: 100%; height: 100%; object-fit: cover; }
+    .store-img-ph { font-size: 32px; color: var(--muted); }
+    .store-info { padding: 12px 14px 14px; }
+    .store-name { font-family: 'Playfair Display', serif; font-size: 14px; font-weight: 600; margin-bottom: 5px; }
+    .store-desc { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+    .store-rating { margin-top: 8px; font-size: 11px; color: var(--accent); }
+
+    /* ── STORE DETAIL ── */
+    .detail-hero {
+      width: 100%; height: 260px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden; position: relative; margin-bottom: 28px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .detail-hero img { width: 100%; height: 100%; object-fit: cover; }
+    .detail-hero-overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(to bottom, transparent 40%, rgba(0,0,0,.65));
+      display: flex; align-items: flex-end; padding: 22px 26px;
+    }
+    .detail-hero-name { font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 700; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-bottom: 28px; }
+    .detail-block-title { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 700; margin-bottom: 10px; }
+    .detail-block-text { font-size: 13px; color: var(--muted); line-height: 1.65; }
+    .detail-meta { margin-top: 14px; font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
+    .mini-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-top: 16px; }
+    .mini-img {
+      height: 70px; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center;
+      font-size: 18px; color: var(--muted);
+    }
+    .mini-img img { width: 100%; height: 100%; object-fit: cover; }
+    .avg-rating { font-size: 32px; font-family: 'Playfair Display', serif; color: var(--accent); margin-bottom: 12px; }
+    .review-list { display: flex; flex-direction: column; gap: 12px; }
+    .review-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+    .review-author { font-size: 12px; color: var(--accent); font-weight: 500; margin-bottom: 4px; }
+    .review-text { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+
+    /* ── ADD FORM ── */
+    .add-form { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+    .form-group { display: flex; flex-direction: column; gap: 7px; }
+    .form-group.full { grid-column: 1 / -1; }
+    .form-label { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+    .form-input, .form-textarea, .form-select {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 9px;
+      padding: 11px 14px; color: var(--text); font-size: 13.5px;
+      font-family: 'DM Sans', sans-serif; outline: none; transition: border-color .2s;
+    }
+    .form-input:focus, .form-textarea:focus, .form-select:focus { border-color: var(--accent); }
+    .form-input.err, .form-textarea.err, .form-select.err { border-color: var(--danger); }
+    .form-error { font-size: 11px; color: var(--danger); }
+    .form-textarea { resize: vertical; min-height: 90px; }
+    .form-select { cursor: pointer; }
+    .upload-box {
+      border: 1.5px dashed var(--border); border-radius: 10px; height: 120px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 8px; cursor: pointer; transition: border-color .2s; color: var(--muted); font-size: 13px;
+    }
+    .upload-box:hover { border-color: var(--accent); color: var(--accent); }
+    .upload-icon { font-size: 28px; }
+    .preview-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+    .preview-item { width: 80px; height: 80px; border-radius: 8px; border: 1px solid var(--border); overflow: hidden; position: relative; }
+    .preview-item img { width: 100%; height: 100%; object-fit: cover; }
+    .preview-remove {
+      position: absolute; top: 4px; right: 4px; width: 18px; height: 18px;
+      border-radius: 50%; background: rgba(0,0,0,.7); border: none; color: #fff;
+      font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    .form-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+    .btn-submit {
+      padding: 12px 32px; background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none; border-radius: 9px; color: #1a1200;
+      font-family: 'DM Sans', sans-serif; font-size: 13.5px; font-weight: 600;
+      cursor: pointer; letter-spacing: .04em; transition: opacity .2s, transform .1s;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .btn-submit:hover:not(:disabled) { opacity: .88; transform: translateY(-1px); }
+    .btn-submit:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-cancel {
+      padding: 12px 22px; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 9px; color: var(--muted); font-family: 'DM Sans', sans-serif;
+      font-size: 13.5px; cursor: pointer; transition: border-color .2s, color .2s;
+    }
+    .btn-cancel:hover { border-color: var(--accent); color: var(--text); }
+    .success-banner {
+      background: rgba(76,184,92,.1); border: 1px solid rgba(76,184,92,.3);
+      border-radius: 9px; padding: 12px 16px; font-size: 13px; color: #6dda7e; margin-bottom: 18px;
+    }
+
+    /* ── MISC ── */
+    .back-row { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+    .btn-back {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      padding: 7px 13px; color: var(--text); cursor: pointer; font-size: 13px;
+      font-family: 'DM Sans', sans-serif; transition: border-color .2s;
+    }
+    .btn-back:hover { border-color: var(--accent); }
+    .badge {
+      display: inline-block; padding: 3px 9px; border-radius: 20px;
+      font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+      background: rgba(201,168,76,.12); color: var(--accent); border: 1px solid rgba(201,168,76,.2);
+    }
+
+    .fade-enter-active, .fade-leave-active { transition: opacity .18s ease; }
+    .fade-enter-from, .fade-leave-to { opacity: 0; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ═══════ AUTH ═══════ -->
+  <template v-if="!loggedIn">
+    <div class="auth-wrap">
+      <div class="auth-card">
+        <div class="auth-logo">Wonder Naga</div>
+        <div class="auth-title">{{ authMode === 'login' ? 'Welcome Back' : 'Create Account' }}</div>
+        <div class="auth-tabs">
+          <button class="auth-tab" :class="{active: authMode==='login'}"    @click="switchAuth('login')">Sign In</button>
+          <button class="auth-tab" :class="{active: authMode==='register'}" @click="switchAuth('register')">Register</button>
+        </div>
+
+        <div v-if="authError" class="alert-error">{{ authError }}</div>
+
+        <template v-if="authMode==='register'">
+          <div class="field-label">Full Name</div>
+          <input class="field-input" :class="{err: fe.name}" type="text" placeholder="Enter full name" v-model="authForm.name"/>
+          <div v-if="fe.name" class="field-error">{{ fe.name }}</div>
+        </template>
+
+        <div class="field-label">Username</div>
+        <input class="field-input" :class="{err: fe.username}" type="text" placeholder="Enter username" v-model="authForm.username"/>
+        <div v-if="fe.username" class="field-error">{{ fe.username }}</div>
+
+        <div class="field-label">Password</div>
+        <input class="field-input" :class="{err: fe.password}" type="password" placeholder="Enter password" v-model="authForm.password"/>
+        <div v-if="fe.password" class="field-error">
+          <template v-if="typeof fe.password === 'string'">{{ fe.password }}</template>
+          <template v-else>
+            <div style="margin-bottom:4px;">Password must include:</div>
+            <ul style="padding-left:16px; display:flex; flex-direction:column; gap:3px;">
+              <li v-for="msg in fe.password" :key="msg">{{ msg }}</li>
+            </ul>
+          </template>
+        </div>
+
+        <template v-if="authMode==='register'">
+          <div class="field-label">Confirm Password</div>
+          <input class="field-input" :class="{err: fe.confirm}" type="password" placeholder="Confirm password" v-model="authForm.confirm"/>
+          <div v-if="fe.confirm" class="field-error">{{ fe.confirm }}</div>
+        </template>
+
+        <button class="btn-primary" :disabled="authLoading" @click="submitAuth">
+          <span v-if="authLoading" class="spinner" style="width:16px;height:16px;border-width:2px;"></span>
+          <span>{{ authMode === 'login' ? 'Sign In' : 'Create Account' }}</span>
+        </button>
+
+
+      </div>
+    </div>
+  </template>
+
+  <!-- ═══════ APP SHELL ═══════ -->
+  <template v-else>
+    <div class="app-shell">
+
+      <aside class="sidebar">
+        <div class="sidebar-brand">Wonder <span>Naga</span></div>
+        <ul class="nav-list">
+          <li class="nav-item" :class="{active: page==='home'}"        @click="navigate('home')">        <span class="nav-icon">⌂</span> Home </li>
+          <li class="nav-item" :class="{active: page==='restaurants'}" @click="navigate('restaurants')"> <span class="nav-icon">🍽</span> Restaurants </li>
+          <li class="nav-item" :class="{active: page==='cafes'}"       @click="navigate('cafes')">       <span class="nav-icon">☕</span> Cafes </li>
+          <li class="nav-item" :class="{active: page==='attractions'}" @click="navigate('attractions')"> <span class="nav-icon">🗺</span> Attractions </li>
+          <li class="nav-item" :class="{active: page==='add'}"         @click="navigate('add')">         <span class="nav-icon">＋</span> Add recommendation </li>
+        </ul>
+        <div class="sidebar-footer">
+          <div class="nav-item" @click="logout"><span class="nav-icon">⎋</span> Sign Out</div>
+        </div>
+      </aside>
+
+      <div class="main-area">
+        <div class="topbar">
+          <div class="topbar-title">{{ pageTitle }}</div>
+          <div class="search-box">
+            <span class="search-icon">⌕</span>
+            <input type="text" placeholder="Search places..." v-model="searchQuery" @input="onSearch"/>
+          </div>
+        </div>
+
+        <div class="page-content">
+          <transition name="fade" mode="out-in">
+
+            <!-- HOME -->
+            <div v-if="page==='home'" key="home">
+              <div class="featured-banner">
+                <template v-if="loadingFeatured">
+                  <div class="featured-content"><div class="spinner"></div></div>
+                </template>
+                <template v-else-if="featured">
+                  <img v-if="featured.image_url" class="featured-cover" :src="featured.image_url" :alt="featured.name"/>
+                  <div class="featured-content">
+                    <div class="featured-tag">✦ Featured Store</div>
+                    <div class="featured-name">{{ featured.name }}</div>
+                    <div class="featured-sub">{{ featured.category }} · {{ featured.location }}</div>
+                  </div>
+                </template>
+                <template v-else>
+                  <div class="featured-content">
+                    <div class="featured-tag">✦ Featured Store</div>
+                    <div class="featured-name" style="color:var(--muted);">No featured store</div>
+                  </div>
+                </template>
+              </div>
+
+              <div class="section-label">Top Recommended</div>
+              <store-list :stores="topStores" :loading="loadingTop" :error="errorTop" @select="openStore" @retry="fetchTopStores"></store-list>
+            </div>
+
+            <!-- RESTAURANTS -->
+            <div v-else-if="page==='restaurants'" key="restaurants">
+              <div class="page-heading">Restaurants</div>
+              <store-list :stores="listData" :loading="loadingList" :error="errorList" @select="openStore" @retry="() => fetchList('restaurant')"></store-list>
+            </div>
+
+            <!-- CAFES -->
+            <div v-else-if="page==='cafes'" key="cafes">
+              <div class="page-heading">Cafes</div>
+              <store-list :stores="listData" :loading="loadingList" :error="errorList" @select="openStore" @retry="() => fetchList('cafe')"></store-list>
+            </div>
+
+            <!-- ATTRACTIONS -->
+            <div v-else-if="page==='attractions'" key="attractions">
+              <div class="page-heading">Attractions</div>
+              <store-list :stores="listData" :loading="loadingList" :error="errorList" @select="openStore" @retry="() => fetchList('attraction')"></store-list>
+            </div>
+
+            <!-- STORE DETAIL -->
+            <div v-else-if="page==='store'" key="store">
+              <div class="back-row">
+                <button class="btn-back" @click="goBack">← Back</button>
+                <div class="badge" v-if="selectedStore">{{ selectedStore.category }}</div>
+              </div>
+
+              <div v-if="loadingStore" class="state-box"><div class="spinner"></div><div class="state-sub">Loading…</div></div>
+
+              <div v-else-if="errorStore" class="state-box">
+                <div class="state-icon">⚠</div>
+                <div class="state-title">Failed to load</div>
+                <div class="state-sub">{{ errorStore }}</div>
+                <button class="btn-retry" @click="fetchStoreDetail(selectedStore.id)">Retry</button>
+              </div>
+
+              <template v-else-if="storeDetail">
+                <div class="detail-hero">
+                  <img v-if="storeDetail.image_url" :src="storeDetail.image_url" :alt="storeDetail.name"/>
+                  <span v-else style="font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">No Image</span>
+                  <div class="detail-hero-overlay"><div class="detail-hero-name">{{ storeDetail.name }}</div></div>
+                </div>
+
+                <div class="detail-grid">
+                  <div>
+                    <div class="detail-block-title">{{ storeDetail.name }}</div>
+                    <div class="detail-block-text">{{ storeDetail.description }}</div>
+                    <div class="detail-meta">
+                      <span>📍 {{ storeDetail.location }}</span>
+                      <span>🕐 {{ storeDetail.hours }}</span>
+                      <span v-if="storeDetail.contact">📞 {{ storeDetail.contact }}</span>
+                    </div>
+                    <div class="mini-row">
+                      <template v-if="storeDetail.gallery && storeDetail.gallery.length">
+                        <div class="mini-img" v-for="(img,i) in storeDetail.gallery.slice(0,4)" :key="i"><img :src="img" :alt="'Photo '+(i+1)"/></div>
+                      </template>
+                      <template v-else>
+                        <div class="mini-img" v-for="n in 4" :key="n">🖼</div>
+                      </template>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="detail-block-title">Ratings &amp; Comments</div>
+                    <div class="avg-rating">★ {{ storeDetail.avg_rating ?? '—' }}</div>
+                    <div v-if="storeDetail.reviews && storeDetail.reviews.length" class="review-list">
+                      <div class="review-card" v-for="r in storeDetail.reviews" :key="r.id">
+                        <div class="review-author">{{ r.author }}</div>
+                        <div class="review-text">{{ r.text }}</div>
+                      </div>
+                    </div>
+                    <div v-else style="color:var(--muted);font-size:13px;">No reviews yet.</div>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+            <!-- ADD RECOMMENDATION -->
+            <div v-else-if="page==='add'" key="add">
+              <div class="page-heading">Add Info of Recommendation</div>
+              <div v-if="submitSuccess" class="success-banner">✓ Recommendation submitted successfully!</div>
+              <div v-if="submitError"  class="alert-error">{{ submitError }}</div>
+              <div class="add-form">
+                <div class="form-group full" style="margin-bottom:18px;">
+                  <div class="form-label">Images</div>
+                  <div class="upload-box" @click="$refs.fileInput.click()">
+                    <span class="upload-icon">🖼</span>
+                    <span>Click to upload images</span>
+                    <input ref="fileInput" type="file" accept="image/*" multiple style="display:none" @change="onFiles"/>
+                  </div>
+                  <div class="preview-row" v-if="addForm.previews.length">
+                    <div class="preview-item" v-for="(src,i) in addForm.previews" :key="i">
+                      <img :src="src"/>
+                      <button class="preview-remove" @click="removeImg(i)">✕</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-grid">
+                  <div class="form-group">
+                    <div class="form-label">Store Name</div>
+                    <input class="form-input" :class="{err: ae.name}" type="text" placeholder="Enter store name" v-model="addForm.name"/>
+                    <div v-if="ae.name" class="form-error">{{ ae.name }}</div>
+                  </div>
+                  <div class="form-group">
+                    <div class="form-label">Reason for Recommending</div>
+                    <input class="form-input" :class="{err: ae.reason}" type="text" placeholder="Why recommend this?" v-model="addForm.reason"/>
+                    <div v-if="ae.reason" class="form-error">{{ ae.reason }}</div>
+                  </div>
+                  <div class="form-group">
+                    <div class="form-label">Store Location</div>
+                    <input class="form-input" :class="{err: ae.location}" type="text" placeholder="Enter address" v-model="addForm.location"/>
+                    <div v-if="ae.location" class="form-error">{{ ae.location }}</div>
+                  </div>
+                  <div class="form-group">
+                    <div class="form-label">Category</div>
+                    <select class="form-select" :class="{err: ae.category}" v-model="addForm.category">
+                      <option value="">Select a category</option>
+                      <option v-for="c in categories" :key="c.value" :value="c.value">{{ c.label }}</option>
+                    </select>
+                    <div v-if="ae.category" class="form-error">{{ ae.category }}</div>
+                  </div>
+                  <div class="form-group">
+                    <div class="form-label">Operating Hours</div>
+                    <input class="form-input" type="text" placeholder="e.g. 8AM–10PM" v-model="addForm.hours"/>
+                  </div>
+                  <div class="form-group">
+                    <div class="form-label">Contact Number (optional)</div>
+                    <input class="form-input" type="text" placeholder="+63 xxx xxx xxxx" v-model="addForm.contact"/>
+                  </div>
+                  <div class="form-group full">
+                    <div class="form-label">Description</div>
+                    <textarea class="form-textarea" :class="{err: ae.description}" placeholder="Describe this place…" v-model="addForm.description"></textarea>
+                    <div v-if="ae.description" class="form-error">{{ ae.description }}</div>
+                  </div>
+                </div>
+
+                <div class="form-footer">
+                  <button class="btn-cancel" @click="clearAddForm">Clear</button>
+                  <button class="btn-submit" :disabled="submitLoading" @click="submitRec">
+                    <span v-if="submitLoading" class="spinner" style="width:14px;height:14px;border-width:2px;"></span>
+                    <span>Submit Recommendation</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+          </transition>
+        </div>
+      </div>
+    </div>
+  </template>
+</div>
+
+<!-- StoreList component template -->
+<script type="text/x-template" id="store-list-tpl">
+  <div>
+    <div v-if="loading" class="state-box"><div class="spinner"></div><div class="state-sub">Loading…</div></div>
+    <div v-else-if="error" class="state-box">
+      <div class="state-icon">⚠</div>
+      <div class="state-title">Something went wrong</div>
+      <div class="state-sub">{{ error }}</div>
+      <button class="btn-retry" @click="$emit('retry')">Retry</button>
+    </div>
+    <div v-else-if="!stores || !stores.length" class="state-box">
+      <div class="state-icon">🔍</div>
+      <div class="state-title">Nothing here yet</div>
+      <div class="state-sub">No entries found.</div>
+    </div>
+    <div v-else class="store-grid">
+      <div class="store-card" v-for="s in stores" :key="s.id" @click="$emit('select', s)">
+        <div class="store-img">
+          <img v-if="s.image_url" :src="s.image_url" :alt="s.name"/>
+          <span v-else class="store-img-ph">🏪</span>
+        </div>
+        <div class="store-info">
+          <div class="store-name">{{ s.name }}</div>
+          <div class="store-desc">{{ s.description }}</div>
+          <div class="store-rating">★ {{ s.avg_rating ?? '—' }} &nbsp;·&nbsp; {{ s.location }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</script>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+//  API SERVICE
+//  All requests go through here. Change BASE_URL to backend endpoint.
+// ─────────────────────────────────────────────────────────────────────────────
+const API = (() => {
+  const BASE_URL = 'https://your-api.com/api'; // ← BACKEND URL HERE
+  let token = null;
+
+  const setToken   = t  => { token = t; };
+  const clearToken = () => { token = null; };
+
+  async function req(method, path, body = null) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const opts = { method, headers };
+    if (body) opts.body = JSON.stringify(body);
+    const res = await fetch(`${BASE_URL}${path}`, opts);
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.message || `HTTP ${res.status}`);
+    }
+    return res.json();
+  }
+
+  async function upload(path, formData) {
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers, body: formData });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.message || `HTTP ${res.status}`);
+    }
+    return res.json();
+  }
+
+  return {
+    setToken, clearToken,
+    // Auth endpoints
+    login:    body => req('POST', '/auth/login',    body),
+    register: body => req('POST', '/auth/register', body),
+    logout:   ()   => req('POST', '/auth/logout'),
+    // Store endpoints — backend filters by category & search query
+    getFeatured:  ()           => req('GET', '/stores/featured'),
+    getTopStores: ()           => req('GET', '/stores/top'),
+    getStores:    (cat, q='') => req('GET', `/stores?category=${cat}&search=${encodeURIComponent(q)}`),
+    getStore:     id           => req('GET', `/stores/${id}`),
+    // Recommendation endpoint (multipart form with images)
+    addRecommendation: fd => upload('/recommendations', fd),
+    // Optional: load categories dynamically from backend
+    getCategories: () => req('GET', '/categories'),
+  };
+})();
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  VUE APP
+// ─────────────────────────────────────────────────────────────────────────────
+const { createApp, ref, computed } = Vue;
+
+const StoreList = {
+  template: '#store-list-tpl',
+  props: {
+    stores:  { type: Array,   default: () => [] },
+    loading: { type: Boolean, default: false },
+    error:   { type: String,  default: null },
+  },
+  emits: ['select', 'retry'],
+};
+
+createApp({
+  components: { StoreList },
+  setup() {
+
+    // ── Auth ──────────────────────────────────────────
+    const loggedIn    = ref(false);
+    const authMode    = ref('login');
+    const authLoading = ref(false);
+    const authError   = ref(null);
+    const fe          = ref({});   // field errors
+    const authForm    = ref({ name: '', username: '', password: '', confirm: '' });
+
+    function switchAuth(mode) { authMode.value = mode; authError.value = null; fe.value = {}; }
+
+    function validateAuth() {
+      const e = {};
+      if (authMode.value === 'register' && !authForm.value.name.trim()) e.name = 'Full name is required.';
+      if (!authForm.value.username.trim())  e.username = 'Username is required.';
+      if (!authForm.value.password) {
+        e.password = ['Password is required.'];
+      } else {
+        const p = authForm.value.password;
+        const errs = [];
+        if (p.length < 8 || p.length > 12) errs.push('8–12 characters long');
+        if (!/[A-Z]/.test(p))              errs.push('at least one uppercase letter');
+        if (!/[a-z]/.test(p))              errs.push('at least one lowercase letter');
+        if (!/[0-9]/.test(p))              errs.push('at least one number');
+        if (!/[^A-Za-z0-9]/.test(p))       errs.push('at least one symbol (e.g. @, #, !)');
+        if (errs.length) e.password = errs;
+      }
+      if (authMode.value === 'register' && authForm.value.password !== authForm.value.confirm)
+        e.confirm = 'Passwords do not match.';
+      fe.value = e;
+      return !Object.keys(e).length;
+    }
+
+    async function submitAuth() {
+      authError.value = null;
+      if (!validateAuth()) return;
+      authLoading.value = true;
+      try {
+        const payload = { username: authForm.value.username, password: authForm.value.password };
+        if (authMode.value === 'register') payload.name = authForm.value.name;
+        const data = await (authMode.value === 'login' ? API.login(payload) : API.register(payload));
+        API.setToken(data.token);
+        loggedIn.value = true;
+        fetchHome();
+      } catch(e) {
+        authError.value = e.message;
+      } finally {
+        authLoading.value = false;
+      }
+    }
+
+    function logout() {
+      API.logout().catch(() => {});
+      API.clearToken();
+      loggedIn.value = false;
+    }
+
+    // ── Navigation ────────────────────────────────────
+    const page        = ref('home');
+    const prevPage    = ref('home');
+    const searchQuery = ref('');
+    let   searchTimer = null;
+
+    const pageTitle = computed(() => ({
+      home:        'Explore Wonder Naga',
+      restaurants: 'Restaurants',
+      cafes:       'Cafes',
+      attractions:  'Attractions',
+      store:        storeDetail.value?.name || selectedStore.value?.name || 'Store Detail',
+      add:          'Add Recommendation',
+    }[page.value] || ''));
+
+    function navigate(p) {
+      prevPage.value  = page.value;
+      page.value      = p;
+      searchQuery.value = '';
+      errorList.value = null;
+      if (p === 'home')        fetchHome();
+      if (p === 'restaurants') fetchList('restaurant');
+      if (p === 'cafes')       fetchList('cafe');
+      if (p === 'attractions') fetchList('attraction');
+    }
+
+    function goBack() {
+      page.value     = prevPage.value;
+      storeDetail.value = null;
+    }
+
+    function onSearch() {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        const catMap = { restaurants: 'restaurant', cafes: 'cafe', attractions: 'attraction' };
+        const cat = catMap[page.value];
+        if (cat) fetchList(cat, searchQuery.value);
+      }, 400);
+    }
+
+    // ── Home data ─────────────────────────────────────
+    const featured        = ref(null);
+    const loadingFeatured = ref(false);
+    const topStores       = ref([]);
+    const loadingTop      = ref(false);
+    const errorTop        = ref(null);
+
+    async function fetchHome() {
+      // Featured
+      loadingFeatured.value = true;
+      try { featured.value = await API.getFeatured(); }
+      catch { featured.value = null; }
+      finally { loadingFeatured.value = false; }
+      // Top stores
+      fetchTopStores();
+    }
+
+    async function fetchTopStores() {
+      loadingTop.value = true; errorTop.value = null;
+      try { topStores.value = await API.getTopStores(); }
+      catch(e) { errorTop.value = e.message; }
+      finally { loadingTop.value = false; }
+    }
+
+    // ── List data ─────────────────────────────────────
+    const listData    = ref([]);
+    const loadingList = ref(false);
+    const errorList   = ref(null);
+
+    async function fetchList(category, query = '') {
+      loadingList.value = true; errorList.value = null;
+      try { listData.value = await API.getStores(category, query); }
+      catch(e) { errorList.value = e.message; listData.value = []; }
+      finally { loadingList.value = false; }
+    }
+
+    // ── Store detail ──────────────────────────────────
+    const selectedStore = ref(null);
+    const storeDetail   = ref(null);
+    const loadingStore  = ref(false);
+    const errorStore    = ref(null);
+
+    function openStore(s) {
+      prevPage.value = page.value;
+      selectedStore.value = s;
+      storeDetail.value = null;
+      page.value = 'store';
+      fetchStoreDetail(s.id);
+    }
+
+    async function fetchStoreDetail(id) {
+      loadingStore.value = true; errorStore.value = null;
+      try { storeDetail.value = await API.getStore(id); }
+      catch(e) { errorStore.value = e.message; }
+      finally { loadingStore.value = false; }
+    }
+
+    // ── Add recommendation ────────────────────────────
+    const submitLoading = ref(false);
+    const submitSuccess = ref(false);
+    const submitError   = ref(null);
+    const ae            = ref({}); // add form errors
+
+    // Categories — can also be fetched from API.getCategories()
+    const categories = ref([
+      { value: 'restaurant', label: 'Restaurant' },
+      { value: 'cafe',       label: 'Cafe' },
+      { value: 'attraction', label: 'Attraction' },
+    ]);
+
+    const addForm = ref({
+      name: '', reason: '', location: '', category: '',
+      hours: '', contact: '', description: '',
+      files: [], previews: [],
+    });
+
+    function onFiles(e) {
+      Array.from(e.target.files).forEach(f => {
+        addForm.value.files.push(f);
+        const r = new FileReader();
+        r.onload = ev => addForm.value.previews.push(ev.target.result);
+        r.readAsDataURL(f);
+      });
+      e.target.value = '';
+    }
+
+    function removeImg(i) {
+      addForm.value.files.splice(i, 1);
+      addForm.value.previews.splice(i, 1);
+    }
+
+    function validateAdd() {
+      const e = {};
+      if (!addForm.value.name.trim())        e.name        = 'Store name is required.';
+      if (!addForm.value.reason.trim())      e.reason      = 'Reason is required.';
+      if (!addForm.value.location.trim())    e.location    = 'Location is required.';
+      if (!addForm.value.category)           e.category    = 'Please select a category.';
+      if (!addForm.value.description.trim()) e.description = 'Description is required.';
+      ae.value = e;
+      return !Object.keys(e).length;
+    }
+
+    async function submitRec() {
+      submitError.value = null; submitSuccess.value = false;
+      if (!validateAdd()) return;
+      submitLoading.value = true;
+      try {
+        const fd = new FormData();
+        fd.append('name',        addForm.value.name);
+        fd.append('reason',      addForm.value.reason);
+        fd.append('location',    addForm.value.location);
+        fd.append('category',    addForm.value.category);
+        fd.append('hours',       addForm.value.hours);
+        fd.append('contact',     addForm.value.contact);
+        fd.append('description', addForm.value.description);
+        addForm.value.files.forEach(f => fd.append('images', f));
+        await API.addRecommendation(fd);
+        submitSuccess.value = true;
+        clearAddForm();
+      } catch(e) {
+        submitError.value = e.message;
+      } finally {
+        submitLoading.value = false;
+      }
+    }
+
+    function clearAddForm() {
+      addForm.value = { name:'', reason:'', location:'', category:'', hours:'', contact:'', description:'', files:[], previews:[] };
+      ae.value = {};
+      submitError.value = null;
+    }
+
+    return {
+      // auth
+      loggedIn, authMode, authLoading, authError, fe, authForm,
+      switchAuth, submitAuth, logout,
+      // nav
+      page, prevPage, searchQuery, pageTitle, navigate, goBack, onSearch,
+      // home
+      featured, loadingFeatured, topStores, loadingTop, errorTop, fetchTopStores,
+      // list
+      listData, loadingList, errorList, fetchList,
+      // detail
+      selectedStore, storeDetail, loadingStore, errorStore, fetchStoreDetail, openStore,
+      // add
+      addForm, ae, categories, submitLoading, submitSuccess, submitError,
+      onFiles, removeImg, submitRec, clearAddForm,
+    };
+  }
+}).mount('#app');
+</script>
+</body>
+</html>

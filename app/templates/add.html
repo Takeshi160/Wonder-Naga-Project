@@ -1,0 +1,97 @@
+{% extends "layout.html" %} {% set active_page = 'add' %} {% set page_title =
+'Add Recommendation' %} {% block content %}
+
+<div class="page-heading">Add Info of Recommendation</div>
+
+{% if success %}
+<div class="success-banner">✓ Recommendation submitted successfully!</div>
+{% endif %} {% if error %}
+<div class="alert-error">{{ error }}</div>
+{% endif %}
+
+<div class="add-form">
+  <form method="POST" enctype="multipart/form-data">
+    {{ form.hidden_tag() }}
+
+<div class="form-group full" style="margin-bottom: 18px">
+      <div class="form-label">Images</div>
+        <label class="upload-box" for="images">
+        <span class="upload-icon">🖼</span>
+        <span>Click to upload images</span>
+        <input
+          id="images"
+          type="file"
+          name="images"
+          accept="image/*"
+          multiple
+          style="display: none"
+          onchange="previewImages(this)"
+          
+        />
+        <div class="preview-row" id="preview-row"></div>
+      </label>
+    </div>
+
+<div class="form-grid">
+      <div class="form-group">
+        <div class="form-label">Store Name</div>
+          {{ form.title(class="form-input") }}
+         </div>
+
+   <div class="form-group">
+        <div class="form-label">Reason for Recommending</div>
+    {{ form.reason(class="form-input") }}
+</div>
+
+
+    <div class="form-group">
+        <div class="form-label">Store Location</div>
+    {{ form.location(class="form-input") }}
+</div>
+
+    <div class="form-group">
+        <div class="form-label">Category</div>
+    {{ form.category(class="form-select") }}
+</div>
+
+    <div class="form-group">
+        <div class="form-label">Operating Hours</div>
+    {{ form.hours(class="form-input") }}
+</div>
+
+    <div class="form-group">
+        <div class="form-label">Contact Number (optional)</div>
+    {{ form.contact(class="form-input") }}
+</div>
+
+    <div class="form-group full">
+        <div class="form-label">Description</div>
+    {{ form.description(class="form-textarea") }}
+</div>
+
+<div class="form-footer">
+      <button type="reset" class="btn-cancel">Clear</button>
+      <div class="form-group full">
+        {{ form.submit(class="btn btn-primary") }}
+      </div>
+</form>
+</div>
+
+<script>
+  function previewImages(input) {
+    const row = document.getElementById("preview-row");
+    row.innerHTML = "";
+    Array.from(input.files).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const div = document.createElement("div");
+        div.className = "preview-item";
+        div.innerHTML = `<img src="${e.target.result}" alt="preview"/>`;
+        row.appendChild(div);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+</script>
+
+{% endblock %}

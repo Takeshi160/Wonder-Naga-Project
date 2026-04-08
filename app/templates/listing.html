@@ -1,0 +1,48 @@
+{% extends "layout.html" %}
+{% set active_page = category + 's' %}
+{% set page_title = title %}
+{% set search_action = request.path %}
+
+{% block content %}
+
+<div class="page-heading">{{ title }}</div>
+
+{% if error %}
+<div class="state-box">
+  <div class="state-icon">⚠</div>
+  <div class="state-title">Something went wrong</div>
+  <div class="state-sub">{{ error }}</div>
+  <a class="btn-retry" href="{{ request.url }}">Retry</a>
+</div>
+
+{% elif stores %}
+<div class="store-grid">
+  {% for s in stores %}
+  <a class="store-card" href="{{ url_for('store_detail', store_id=s.id) }}">
+    <div class="store-img">
+      {% if s.image_url %}
+        <img src="{{ s.image_url }}" alt="{{ s.name }}"/>
+      {% else %}
+        <span class="store-img-ph">🏪</span>
+      {% endif %}
+    </div>
+    <div class="store-info">
+      <div class="store-name">{{ s.name }}</div>
+      <div class="store-desc">{{ s.description }}</div>
+      <div class="store-rating">★ {{ s.avg_rating or '—' }} &nbsp;·&nbsp; {{ s.location }}</div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="state-box">
+  <div class="state-icon">🔍</div>
+  <div class="state-title">Nothing here yet</div>
+  <div class="state-sub">
+    {% if q %}No results for "{{ q }}".{% else %}No entries found.{% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

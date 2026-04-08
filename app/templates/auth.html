@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>
+      Wonder Naga · {{ 'Sign In' if mode == 'login' else 'Register' }}
+    </title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/main.css') }}"
+    />
+  </head>
+  <body>
+    <div class="auth-wrap">
+      <div class="auth-card">
+        <div class="auth-logo">Wonder Naga</div>
+        <div class="auth-title">
+          {{ 'Welcome Back' if mode == 'login' else 'Create Account' }}
+        </div>
+
+        <!-- Tab switcher -->
+        <div class="auth-tabs">
+          <a
+            class="auth-tab {% if mode == 'login' %}active{% endif %}"
+            href="{{ url_for('login') }}"
+            >Sign In</a
+          >
+          <a
+            class="auth-tab {% if mode == 'register' %}active{% endif %}"
+            href="{{ url_for('register') }}"
+            >Register</a
+          >
+        </div>
+
+        {% if error %}
+        <div class="alert-error">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" novalidate>
+          {{ form.hidden_tag() }}
+
+          <div class="field-label">Username</div>
+          {{ form.username(class="field-input", placeholder="Enter username") }}
+          {% if mode == 'register' %}
+          <div class="field-label">Email</div>
+          {{ form.email(class="field-input", placeholder="Enter email") }} {%
+          endif %}
+
+          <div class="field-label">Password</div>
+          {{ form.password(class="field-input", placeholder="Enter password") }}
+          {% if mode == 'register' %}
+          <div class="field-label">Confirm Password</div>
+          {{ form.password2(class="field-input", placeholder="Repeat password")
+          }}
+
+          <div class="field-hint">
+            Password must be 8–12 characters and include uppercase, lowercase, a
+            number, and a symbol.
+          </div>
+          {% endif %}
+
+          <button class="btn-primary" type="submit">
+            {{ 'Sign In' if mode == 'login' else 'Create Account' }}
+          </button>
+        </form>
+      </div>
+    </div>
+  </body>
+</html>
