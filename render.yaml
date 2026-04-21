@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: wonder-naga-project
+    env: python
+    region: oregon
+
+    buildCommand: pip install -r requirements.txt && flask db upgrade
+    startCommand: gunicorn microblog:app
+
+    runtime: python
+    pythonVersion: 3.11.9
