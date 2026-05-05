@@ -1,87 +1,32 @@
-{% extends "layout.html" %} {% set page_title = store.name if store else 'Store
-Detail' %} {% block content %}
+{% extends "layout.html" %}
+{% set page_title = store.title if store else 'Store Detail' %}
 
+{% block content %}
 <div class="back-row">
   <a class="btn-back" href="javascript:history.back()">← Back</a>
   {% if store %}
-  <span class="badge">{{ store.category }}</span>
+    <span class="badge">{{ store.category }}</span>
   {% endif %}
 </div>
 
-{% if error %}
-<div class="state-box">
-  <div class="state-icon">⚠</div>
-  <div class="state-title">Failed to load</div>
-  <div class="state-sub">{{ error }}</div>
-  <a class="btn-retry" href="{{ request.url }}">Retry</a>
-</div>
+{% if store %}
+  <div class="detail-block-title">{{ store.title }}</div>
+  <div class="detail-block-text">{{ store.description }}</div>
 
-{% elif store %}
-
-<!-- ── HERO ── -->
-<div class="detail-hero">
-  {% if store.image_url %}
-  <img src="{{ store.image_url }}" alt="{{ store.name }}" />
-  {% else %}
-  <span
-    style="
-      font-size: 13px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--muted);
-    "
-    >No Image</span
-  >
-  {% endif %}
-  <div class="detail-hero-overlay">
-    <div class="detail-hero-name">{{ store.name }}</div>
-  </div>
-</div>
-
-<!-- ── DETAIL GRID ── -->
-<div class="detail-grid">
-  <!-- Left column: info -->
-  <div>
-    <div class="detail-block-title">{{ store.name }}</div>
-    <div class="detail-block-text">{{ store.description }}</div>
-    <div class="detail-meta">
-      <span>📍 {{ store.location }}</span>
-      <span>🕐 {{ store.hours }}</span>
-      {% if store.contact %}
+  <div class="detail-meta">
+    <span>📍 {{ store.location }}</span>
+    <span>🕐 {{ store.hours }}</span>
+    {% if store.contact %}
       <span>📞 {{ store.contact }}</span>
-      {% endif %}
-    </div>
-
-    <!-- Gallery thumbnails -->
-    <div class="mini-row">
-      {% if store.gallery %} {% for img in store.gallery[:4] %}
-      <div class="mini-img">
-        <img src="{{ img }}" alt="Photo {{ loop.index }}" />
-      </div>
-      {% endfor %} {% else %} {% for n in range(4) %}
-      <div class="mini-img">🖼</div>
-      {% endfor %} {% endif %}
-    </div>
-  </div>
-
-  <!-- Right column: ratings & reviews -->
-  <div>
-    <div class="detail-block-title">Ratings &amp; Comments</div>
-    <div class="avg-rating">★ {{ store.avg_rating or '—' }}</div>
-
-    {% if store.reviews %}
-    <div class="review-list">
-      {% for r in store.reviews %}
-      <div class="review-card">
-        <div class="review-author">{{ r.author }}</div>
-        <div class="review-text">{{ r.text }}</div>
-      </div>
-      {% endfor %}
-    </div>
-    {% else %}
-    <div style="color: var(--muted); font-size: 13px">No reviews yet.</div>
     {% endif %}
   </div>
-</div>
 
-{% endif %} {% endblock %}
+  <div class="detail-block-title">Why Recommended</div>
+  <div class="detail-block-text">{{ store.reason }}</div>
+
+{% else %}
+  <div class="state-box">
+    <div class="state-title">Store not found</div>
+  </div>
+{% endif %}
+{% endblock %}
