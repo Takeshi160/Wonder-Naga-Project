@@ -2,31 +2,67 @@
 {% set page_title = store.title if store else 'Store Detail' %}
 
 {% block content %}
+
 <div class="back-row">
   <a class="btn-back" href="javascript:history.back()">← Back</a>
+
   {% if store %}
     <span class="badge">{{ store.category }}</span>
   {% endif %}
 </div>
 
 {% if store %}
-  <div class="detail-block-title">{{ store.title }}</div>
-  <div class="detail-block-text">{{ store.description }}</div>
+
+<div class="detail-card">
+
+  <div class="detail-block-title">
+    {{ store.title }}
+  </div>
+
+  <div class="detail-block-text">
+    {{ store.description }}
+  </div>
 
   <div class="detail-meta">
     <span>📍 {{ store.location }}</span>
-    <span>🕐 {{ store.hours }}</span>
+
+    {% if store.hours %}
+      <span>🕐 {{ store.hours }}</span>
+    {% endif %}
+
     {% if store.contact %}
       <span>📞 {{ store.contact }}</span>
     {% endif %}
   </div>
 
-  <div class="detail-block-title">Why Recommended</div>
-  <div class="detail-block-text">{{ store.reason }}</div>
+  <div class="detail-section">
+    <div class="detail-block-title">
+      Why Recommended
+    </div>
+
+    <div class="detail-block-text">
+      {{ store.reason }}
+    </div>
+  </div>
+
+  {% if store.user_id %}
+  <div class="detail-section">
+    <small>
+      Added by User #{{ store.user_id }}
+    </small>
+  </div>
+  {% endif %}
+
+</div>
 
 {% else %}
-  <div class="state-box">
-    <div class="state-title">Store not found</div>
+
+<div class="state-box">
+  <div class="state-title">
+    Store not found
   </div>
+</div>
+
 {% endif %}
+
 {% endblock %}
