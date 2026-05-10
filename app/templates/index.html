@@ -1,114 +1,254 @@
-{% extends "layout.html" %} {% set active_page = 'home' %} {% set page_title =
-'Explore Wonder Naga' %} {% block content %}
+{% extends "layout.html" %}
 
-<!-- ── FEATURED BANNER ── -->
+{% set active_page = 'home' %}
+{% set page_title = 'Explore Wonder Naga' %}
+
+{% block content %}
+
+<!-- ───────────────── FEATURED BANNER ───────────────── -->
 <div class="featured-banner">
-  {% if featured %} {% if featured.image_url %}
-  <img
-    class="featured-cover"
-    src="{{ featured.image_url }}"
-    alt="{{ featured.name }}"
-  />
-  {% endif %}
-  <div class="featured-content">
-    <div class="featured-tag">✦ Featured Store</div>
-    <div class="featured-name">{{ featured.name }}</div>
-    <div class="featured-sub">
-      {{ featured.category }} · {{ featured.location }}
+
+  {% if featured %}
+
+    {% if featured.image_url %}
+      <img
+        class="featured-cover"
+        src="{{ featured.image_url }}"
+        alt="{{ featured.title }}"
+      />
+    {% endif %}
+
+    <div class="featured-content">
+      <div class="featured-tag">✦ Featured Store</div>
+
+      <div class="featured-name">
+        {{ featured.title }}
+      </div>
+
+      <div class="featured-sub">
+        {{ featured.category }} · {{ featured.location }}
+      </div>
     </div>
-  </div>
+
   {% else %}
-  <div class="featured-content">
-    <div class="featured-tag">✦ Featured Store</div>
-    <div class="featured-name" style="color: var(--muted)">
-      No featured store
+
+    <div class="featured-content">
+      <div class="featured-tag">✦ Featured Store</div>
+
+      <div class="featured-name" style="color: var(--muted)">
+        No featured store
+      </div>
     </div>
-  </div>
+
   {% endif %}
+
 </div>
 
-<!-- ── TOP RECOMMENDED ── -->
+<!-- ───────────────── TOP RECOMMENDED ───────────────── -->
 <div class="section-label">Top Recommended</div>
 
 {% if top_stores %}
+
 <div class="store-grid">
+
   {% for s in top_stores %}
-  <a class="store-card" href="{{ url_for('store_detail', store_id=s.id) }}">
-    <div class="store-img">
-      {% if s.image_url %}
-      <img src="{{ s.image_url }}" alt="{{ s.name }}" />
-      {% else %}
-      <span class="store-img-ph">🏪</span>
-      {% endif %}
-    </div>
-    <div class="store-info">
-      <div class="store-name">{{ s.name }}</div>
-      <div class="store-desc">{{ s.description }}</div>
-      <div class="store-rating">
-        ★ {{ s.avg_rating or '—' }} &nbsp;·&nbsp; {{ s.location }}
+
+    <a
+      class="store-card"
+      href="{{ url_for('store_detail', id=s.id) }}"
+    >
+
+      <div class="store-img">
+
+        {% if s.image_url %}
+          <img
+            src="{{ s.image_url }}"
+            alt="{{ s.title }}"
+          />
+        {% else %}
+          <span class="store-img-ph">🏪</span>
+        {% endif %}
+
       </div>
-    </div>
-  </a>
+
+      <div class="store-info">
+
+        <div class="store-name">
+          {{ s.title }}
+        </div>
+
+        <div class="store-desc">
+          {{ s.description[:90] }}{% if s.description|length > 90 %}...{% endif %}
+        </div>
+
+        <div class="store-rating">
+          {{ s.category }} · {{ s.location }}
+        </div>
+
+      </div>
+
+    </a>
+
   {% endfor %}
+
 </div>
+
 {% else %}
+
 <div class="state-box">
   <div class="state-icon">🔍</div>
   <div class="state-title">Nothing here yet</div>
   <div class="state-sub">No top stores found.</div>
 </div>
-{% endif %} 
 
+{% endif %}
+
+<!-- ───────────────── RECOMMENDATIONS ───────────────── -->
 <div class="section-label">Recommendations</div>
 
 {% if recommendations %}
-  <div class="store-grid">
 
-    {% for rec in recommendations %}
-    <div class="store-card">
+<div class="store-grid">
+
+  {% for rec in recommendations %}
+
+  <div class="store-card">
+
+    <!-- CLICKABLE CARD -->
+    <a
+      href="{{ url_for('store_detail', id=rec.id) }}"
+      style="text-decoration: none; color: inherit;"
+    >
+
+      <div class="store-img">
+
+        {% if rec.image_url %}
+          <img
+            src="{{ rec.image_url }}"
+            alt="{{ rec.title }}"
+          />
+        {% else %}
+          <span class="store-img-ph">🏪</span>
+        {% endif %}
+
+      </div>
 
       <div class="store-info">
-        <div class="store-name">{{ rec.title }}</div>
+
+        <div class="store-name">
+          {{ rec.title }}
+        </div>
 
         <div class="store-desc">
-          {{ rec.description }}
+          {{ rec.description[:100] }}
+          {% if rec.description|length > 100 %}...{% endif %}
         </div>
 
         <div class="store-rating">
           {{ rec.category }} · {{ rec.location }}
         </div>
 
-        <div class="store-extra">
-          <small>Reason: {{ rec.reason }}</small><br>
-          <small>Hours: {{ rec.hours }}</small><br>
-          <small>Contact: {{ rec.contact }}</small>
+        <div class="store-extra" style="margin-top: 10px;">
+
+          <small>
+            <strong>Reason:</strong>
+            {{ rec.reason }}
+          </small>
+
+          <br>
+
+          <small>
+            <strong>Hours:</strong>
+            {{ rec.hours }}
+          </small>
+
+          {% if rec.contact %}
+          <br>
+          <small>
+            <strong>Contact:</strong>
+            {{ rec.contact }}
+          </small>
+          {% endif %}
+
         </div>
 
       </div>
 
-      <!-- OPTIONAL ACTION BUTTONS -->
-      <div style="margin-top:10px;">
-        <a href="{{ url_for('edit_rec', id=rec.id) }}">✏ Edit</a>
+    </a>
 
-        <form action="{{ url_for('delete_rec', id=rec.id) }}" method="POST" style="display:inline;">
-          <button type="submit" onclick="return confirm('Delete this?')">
-            🗑 Delete
-          </button>
-        </form>
-      </div>
+    <!-- OWNER ACTIONS -->
+    {% if rec.user_id == current_user.id %}
+
+    <div
+      style="
+        margin-top: 14px;
+        padding: 0 14px 14px;
+        display: flex;
+        gap: 12px;
+      "
+    >
+
+      <!-- EDIT -->
+      <a
+        href="{{ url_for('edit_rec', id=rec.id) }}"
+        style="
+          color: var(--accent);
+          text-decoration: none;
+          font-size: 13px;
+        "
+      >
+        ✏ Edit
+      </a>
+
+      <!-- DELETE -->
+      <form
+        action="{{ url_for('delete_rec', id=rec.id) }}"
+        method="POST"
+        style="display:inline;"
+      >
+
+        <button
+          type="submit"
+          onclick="return confirm('Delete this recommendation?')"
+          style="
+            background: none;
+            border: none;
+            color: #ff6b6b;
+            cursor: pointer;
+            font-size: 13px;
+          "
+        >
+          🗑 Delete
+        </button>
+
+      </form>
 
     </div>
-    {% endfor %}
+
+    {% endif %}
 
   </div>
+
+  {% endfor %}
+
+</div>
 
 {% else %}
-  <div class="state-box">
-    <div class="state-icon">📭</div>
-    <div class="state-title">No recommendations yet</div>
+
+<div class="state-box">
+
+  <div class="state-icon">📭</div>
+
+  <div class="state-title">
+    No recommendations yet
   </div>
+
+  <div class="state-sub">
+    Be the first to add one!
+  </div>
+
+</div>
+
 {% endif %}
 
 {% endblock %}
-
-
