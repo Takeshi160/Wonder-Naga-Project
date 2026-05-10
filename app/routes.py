@@ -1,5 +1,6 @@
 from flask import render_template, flash, redirect, url_for, request
 from app import app, db
+
 from app.forms import (
     LoginForm,
     RegistrationForm,
@@ -8,30 +9,41 @@ from app.forms import (
     PostForm,
     RecommendationForm
 )
+
 from app.models import User, Post, Recommendation
+
 from flask_login import (
     current_user,
     login_user,
     logout_user,
     login_required
 )
+
 import sqlalchemy as sa
 from urllib.parse import urlsplit
 
 
+# ─────────────────────────────────────────────
+# LOGIN
+# ─────────────────────────────────────────────
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+
     if current_user.is_authenticated:
         return redirect(url_for('index'))
 
     form = LoginForm()
 
     if form.validate_on_submit():
+
         user = db.session.scalar(
-            sa.select(User).where(User.username == form.username.data)
+            sa.select(User).where(
+                User.username == form.username.data
+            )
         )
 
         if user is None or not user.check_password(form.password.data):
+
             return render_template(
                 'auth.html',
                 title='Sign In',
@@ -40,12 +52,17 @@ def login():
                 error='Invalid username or password'
             )
 
-        login_user(user, remember=form.remember_me.data)
+        login_user(
+            user,
+            remember=form.remember_me.data
+        )
 
         next_page = request.args.get('next')
 
         if not next_page or urlsplit(next_page).netloc != '':
             next_page = url_for('index')
+
+        flash("Welcome back!")
 
         return redirect(next_page)
 
@@ -58,12 +75,23 @@ def login():
     )
 
 
+# ─────────────────────────────────────────────
+# LOGOUT
+# ─────────────────────────────────────────────
 @app.route('/logout')
+@login_required
 def logout():
+
     logout_user()
+
+    flash("You have been logged out.")
+
     return redirect(url_for('login'))
 
 
+# ─────────────────────────────────────────────
+# HOME PAGE
+# ─────────────────────────────────────────────
 @app.route('/')
 @app.route('/index')
 @login_required
@@ -74,12 +102,28 @@ def index():
         .order_by(Recommendation.id.desc())
     ).all()
 
+    featured = db.session.scalar(
+        sa.select(Recommendation)
+        .order_by(Recommendation.id.desc())
+    )
+
+    top_stores = db.session.scalars(
+        sa.select(Recommendation)
+        .order_by(Recommendation.id.desc())
+        .limit(4)
+    ).all()
+
     return render_template(
         'index.html',
-        recommendations=recommendations
+        recommendations=recommendations,
+        featured=featured,
+        top_stores=top_stores
     )
 
 
+# ─────────────────────────────────────────────
+# REGISTER
+# ─────────────────────────────────────────────
 @app.route('/register', methods=['GET', 'POST'])
 def register():
 
@@ -100,7 +144,7 @@ def register():
         db.session.add(user)
         db.session.commit()
 
-        flash('Congratulations, you are now a registered user!')
+        flash('Account created successfully!')
 
         return redirect(url_for('login'))
 
@@ -113,6 +157,9 @@ def register():
     )
 
 
+# ─────────────────────────────────────────────
+# ADD RECOMMENDATION
+# ─────────────────────────────────────────────
 @app.route('/add', methods=['GET', 'POST'])
 @login_required
 def add():
@@ -154,6 +201,9 @@ def add():
     )
 
 
+# ─────────────────────────────────────────────
+# EDIT RECOMMENDATION
+# ─────────────────────────────────────────────
 @app.route('/edit_rec/<int:id>', methods=['GET', 'POST'])
 @login_required
 def edit_rec(id):
@@ -164,9 +214,9 @@ def edit_rec(id):
         flash("Recommendation not found.")
         return redirect(url_for('index'))
 
-    # SECURITY FIX
+    # SECURITY CHECK
     if rec.user_id != current_user.id:
-        flash("You cannot edit this.")
+        flash("You cannot edit this recommendation.")
         return redirect(url_for('index'))
 
     form = RecommendationForm()
@@ -190,9 +240,9 @@ def edit_rec(id):
 
         db.session.commit()
 
-        flash("Recommendation updated!")
+        flash("Recommendation updated successfully!")
 
-        return redirect(url_for('index'))
+        return redirect(url_for('store_detail', id=rec.id))
 
     elif request.method == 'GET':
 
@@ -212,6 +262,9 @@ def edit_rec(id):
     )
 
 
+# ─────────────────────────────────────────────
+# DELETE RECOMMENDATION
+# ─────────────────────────────────────────────
 @app.route('/delete_rec/<int:id>', methods=['POST'])
 @login_required
 def delete_rec(id):
@@ -222,19 +275,22 @@ def delete_rec(id):
         flash("Recommendation not found.")
         return redirect(url_for('index'))
 
-    # SECURITY FIX
+    # SECURITY CHECK
     if rec.user_id != current_user.id:
-        flash("You cannot delete this.")
+        flash("You cannot delete this recommendation.")
         return redirect(url_for('index'))
 
     db.session.delete(rec)
     db.session.commit()
 
-    flash("Recommendation deleted.")
+    flash("Recommendation deleted successfully.")
 
     return redirect(url_for('index'))
 
 
+# ─────────────────────────────────────────────
+# STORE DETAIL PAGE
+# ─────────────────────────────────────────────
 @app.route('/store/<int:id>')
 @login_required
 def store_detail(id):
@@ -251,6 +307,9 @@ def store_detail(id):
     )
 
 
+# ─────────────────────────────────────────────
+# CATEGORY PAGES
+# ─────────────────────────────────────────────
 @app.route('/restaurants')
 @login_required
 def restaurants():
