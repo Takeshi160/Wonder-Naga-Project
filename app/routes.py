@@ -1,364 +1,347 @@
-from flask import render_template, flash, redirect, url_for, request
-from app import app, db
+import os
+import sqlalchemy as sa
 
-from app.forms import (
-    LoginForm,
-    RegistrationForm,
-    EditProfileForm,
-    EmptyForm,
-    PostForm,
-    RecommendationForm
+from flask import (
+    render_template,
+    request,
+    jsonify,
+    redirect,
+    url_for,
+    flash
 )
 
-from app.models import User, Post, Recommendation
+from werkzeug.utils import secure_filename
 
 from flask_login import (
-    current_user,
     login_user,
     logout_user,
+    current_user,
     login_required
 )
 
-import sqlalchemy as sa
-from urllib.parse import urlsplit
+from app import app, db
+from app.models import User, Recommendation
+
+# ─────────────────────────────────────────────
+# UPLOAD CONFIG
+# ─────────────────────────────────────────────
+UPLOAD_FOLDER = 'app/static/uploads'
+
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
+ALLOWED_EXTENSIONS = {
+    'png',
+    'jpg',
+    'jpeg',
+    'gif'
+}
+
+def allowed_file(filename):
+
+    return '.' in filename and \
+        filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 # ─────────────────────────────────────────────
-# LOGIN
+# FRONTEND
 # ─────────────────────────────────────────────
-@app.route('/login', methods=['GET', 'POST'])
-def login():
+@app.route('/')
+def home():
+    return render_template('index.html')
 
-    if current_user.is_authenticated:
-        return redirect(url_for('index'))
 
-    form = LoginForm()
+# ─────────────────────────────────────────────
+# AUTH API
+# ─────────────────────────────────────────────
+@app.route('/api/auth/register', methods=['POST'])
+def api_register():
 
-    if form.validate_on_submit():
+    data = request.get_json()
 
-        user = db.session.scalar(
-            sa.select(User).where(
-                User.username == form.username.data
-            )
+    existing = db.session.scalar(
+        sa.select(User).where(
+            User.username == data.get('username')
         )
-
-        if user is None or not user.check_password(form.password.data):
-
-            return render_template(
-                'auth.html',
-                title='Sign In',
-                form=form,
-                mode='login',
-                error='Invalid username or password'
-            )
-
-        login_user(
-            user,
-            remember=form.remember_me.data
-        )
-
-        next_page = request.args.get('next')
-
-        if not next_page or urlsplit(next_page).netloc != '':
-            next_page = url_for('index')
-
-        flash("Welcome back!")
-
-        return redirect(next_page)
-
-    return render_template(
-        'auth.html',
-        title='Sign In',
-        form=form,
-        mode='login',
-        error=None
     )
 
+    if existing:
+        return jsonify({
+            "message": "Username already exists"
+        }), 400
 
-# ─────────────────────────────────────────────
-# LOGOUT
-# ─────────────────────────────────────────────
-@app.route('/logout')
+    user = User(
+        username=data.get('username'),
+        email=f"{data.get('username')}@gmail.com"
+    )
+
+    user.set_password(data.get('password'))
+
+    db.session.add(user)
+    db.session.commit()
+
+    login_user(user)
+
+    return jsonify({
+        "message": "Registered successfully",
+        "token": "logged-in"
+    })
+
+
+@app.route('/api/auth/login', methods=['POST'])
+def api_login():
+
+    data = request.get_json()
+
+    user = db.session.scalar(
+        sa.select(User).where(
+            User.username == data.get('username')
+        )
+    )
+
+    if user is None:
+        return jsonify({
+            "message": "User not found"
+        }), 401
+
+    if not user.check_password(data.get('password')):
+        return jsonify({
+            "message": "Invalid password"
+        }), 401
+
+    login_user(user)
+
+    return jsonify({
+        "message": "Login successful",
+        "token": "logged-in"
+    })
+
+
+@app.route('/api/auth/logout', methods=['POST'])
 @login_required
-def logout():
+def api_logout():
 
     logout_user()
 
-    flash("You have been logged out.")
-
-    return redirect(url_for('login'))
+    return jsonify({
+        "message": "Logged out"
+    })
 
 
 # ─────────────────────────────────────────────
-# HOME PAGE
+# FEATURED STORE
 # ─────────────────────────────────────────────
-@app.route('/')
-@app.route('/index')
-@login_required
-def index():
+@app.route('/api/stores/featured')
+def featured_store():
 
-    recommendations = db.session.scalars(
+    store = db.session.scalar(
         sa.select(Recommendation)
-        .order_by(Recommendation.id.desc())
-    ).all()
-
-    featured = db.session.scalar(
-        sa.select(Recommendation)
-        .order_by(Recommendation.id.desc())
+        .order_by(Recommendation.rating.desc())
     )
 
-    top_stores = db.session.scalars(
+    if not store:
+        return jsonify(None)
+
+    return jsonify(store.to_dict())
+
+
+# ─────────────────────────────────────────────
+# TOP STORES
+# ─────────────────────────────────────────────
+@app.route('/api/stores/top')
+def top_stores():
+
+    stores = db.session.scalars(
         sa.select(Recommendation)
-        .order_by(Recommendation.id.desc())
-        .limit(4)
+        .order_by(Recommendation.rating.desc())
+        .limit(8)
     ).all()
 
-    return render_template(
-        'index.html',
-        recommendations=recommendations,
-        featured=featured,
-        top_stores=top_stores
-    )
+    return jsonify([
+        store.to_dict()
+        for store in stores
+    ])
 
 
 # ─────────────────────────────────────────────
-# REGISTER
+# GET STORES
 # ─────────────────────────────────────────────
-@app.route('/register', methods=['GET', 'POST'])
-def register():
+@app.route('/api/stores')
+def get_stores():
 
-    if current_user.is_authenticated:
-        return redirect(url_for('index'))
+    category = request.args.get('category')
 
-    form = RegistrationForm()
+    search = request.args.get('search', '')
 
-    if form.validate_on_submit():
+    sort = request.args.get('sort')
 
-        user = User(
-            username=form.username.data,
-            email=form.email.data
+    query = sa.select(Recommendation)
+
+    if category:
+
+        query = query.where(
+            Recommendation.category == category
         )
 
-        user.set_password(form.password.data)
+    if search:
 
-        db.session.add(user)
-        db.session.commit()
+        query = query.where(
+            Recommendation.title.ilike(f"%{search}%")
+        )
 
-        flash('Account created successfully!')
+    if sort == 'az':
 
-        return redirect(url_for('login'))
+        query = query.order_by(
+            Recommendation.title.asc()
+        )
 
-    return render_template(
-        'auth.html',
-        title='Register',
-        form=form,
-        mode='register',
-        error=None
+    elif sort == 'za':
+
+        query = query.order_by(
+            Recommendation.title.desc()
+        )
+
+    elif sort == 'rating':
+
+        query = query.order_by(
+            Recommendation.rating.desc()
+        )
+
+    stores = db.session.scalars(query).all()
+
+    return jsonify([
+        store.to_dict()
+        for store in stores
+    ])
+
+
+# ─────────────────────────────────────────────
+# STORE DETAIL
+# ─────────────────────────────────────────────
+@app.route('/api/stores/<int:id>')
+def store_detail(id):
+
+    store = db.session.get(
+        Recommendation,
+        id
     )
+
+    if not store:
+
+        return jsonify({
+            "message": "Store not found"
+        }), 404
+
+    return jsonify(store.to_dict())
 
 
 # ─────────────────────────────────────────────
 # ADD RECOMMENDATION
 # ─────────────────────────────────────────────
-@app.route('/add', methods=['GET', 'POST'])
+@app.route('/api/recommendations', methods=['POST'])
 @login_required
-def add():
+def add_recommendation():
 
-    form = RecommendationForm()
+    image_url = None
 
-    form.category.choices = [
-        ('restaurant', 'Restaurant'),
-        ('cafe', 'Cafe'),
-        ('store', 'Store'),
-        ('attraction', 'Attraction')
-    ]
+    if 'images' in request.files:
 
-    if form.validate_on_submit():
+        image = request.files['images']
 
-        new_rec = Recommendation(
-            title=form.title.data,
-            category=form.category.data,
-            description=form.description.data,
-            location=form.location.data,
-            reason=form.reason.data,
-            hours=form.hours.data,
-            contact=form.contact.data,
-            user_id=current_user.id
-        )
+        if image and allowed_file(image.filename):
 
-        db.session.add(new_rec)
-        db.session.commit()
+            filename = secure_filename(
+                image.filename
+            )
 
-        flash("Recommendation added successfully!")
+            filepath = os.path.join(
+                UPLOAD_FOLDER,
+                filename
+            )
 
-        return redirect(url_for('index'))
+            image.save(filepath)
 
-    return render_template(
-        'add.html',
-        form=form,
-        success=False,
-        error=None
+            image_url = f"/static/uploads/{filename}"
+
+    recommendation = Recommendation(
+
+        title=request.form.get('name'),
+
+        category=request.form.get('category'),
+
+        subcategory=request.form.get('subcategory'),
+
+        description=request.form.get('description'),
+
+        location=request.form.get('location'),
+
+        reason=request.form.get('reason'),
+
+        hours=request.form.get('hours'),
+
+        contact=request.form.get('contact'),
+
+        image=image_url,
+
+        rating=5,
+
+        user_id=current_user.id
     )
 
+    db.session.add(recommendation)
 
-# ─────────────────────────────────────────────
-# EDIT RECOMMENDATION
-# ─────────────────────────────────────────────
-@app.route('/edit_rec/<int:id>', methods=['GET', 'POST'])
-@login_required
-def edit_rec(id):
-
-    rec = db.session.get(Recommendation, id)
-
-    if rec is None:
-        flash("Recommendation not found.")
-        return redirect(url_for('index'))
-
-    # SECURITY CHECK
-    if rec.user_id != current_user.id:
-        flash("You cannot edit this recommendation.")
-        return redirect(url_for('index'))
-
-    form = RecommendationForm()
-
-    form.category.choices = [
-        ('restaurant', 'Restaurant'),
-        ('cafe', 'Cafe'),
-        ('store', 'Store'),
-        ('attraction', 'Attraction')
-    ]
-
-    if form.validate_on_submit():
-
-        rec.title = form.title.data
-        rec.category = form.category.data
-        rec.description = form.description.data
-        rec.location = form.location.data
-        rec.reason = form.reason.data
-        rec.hours = form.hours.data
-        rec.contact = form.contact.data
-
-        db.session.commit()
-
-        flash("Recommendation updated successfully!")
-
-        return redirect(url_for('store_detail', id=rec.id))
-
-    elif request.method == 'GET':
-
-        form.title.data = rec.title
-        form.category.data = rec.category
-        form.description.data = rec.description
-        form.location.data = rec.location
-        form.reason.data = rec.reason
-        form.hours.data = rec.hours
-        form.contact.data = rec.contact
-
-    return render_template(
-        'add.html',
-        form=form,
-        success=False,
-        error=None
-    )
-
-
-# ─────────────────────────────────────────────
-# DELETE RECOMMENDATION
-# ─────────────────────────────────────────────
-@app.route('/delete_rec/<int:id>', methods=['POST'])
-@login_required
-def delete_rec(id):
-
-    rec = db.session.get(Recommendation, id)
-
-    if rec is None:
-        flash("Recommendation not found.")
-        return redirect(url_for('index'))
-
-    # SECURITY CHECK
-    if rec.user_id != current_user.id:
-        flash("You cannot delete this recommendation.")
-        return redirect(url_for('index'))
-
-    db.session.delete(rec)
     db.session.commit()
 
-    flash("Recommendation deleted successfully.")
-
-    return redirect(url_for('index'))
+    return jsonify({
+        "message": "Recommendation added successfully"
+    })
 
 
 # ─────────────────────────────────────────────
-# STORE DETAIL PAGE
+# ADMIN PAGE
 # ─────────────────────────────────────────────
-@app.route('/store/<int:id>')
+@app.route('/admin')
 @login_required
-def store_detail(id):
+def admin():
 
-    store = db.session.get(Recommendation, id)
+    if not current_user.is_admin:
 
-    if store is None:
-        flash("Store not found.")
-        return redirect(url_for('index'))
+        flash("Access denied.")
 
-    return render_template(
-        'store_detail.html',
-        store=store
-    )
-
-
-# ─────────────────────────────────────────────
-# CATEGORY PAGES
-# ─────────────────────────────────────────────
-@app.route('/restaurants')
-@login_required
-def restaurants():
+        return redirect(url_for('home'))
 
     stores = db.session.scalars(
         sa.select(Recommendation)
-        .where(Recommendation.category == 'restaurant')
-        .order_by(Recommendation.id.desc())
     ).all()
 
     return render_template(
-        'listing.html',
-        stores=stores,
-        title='Restaurants',
-        category='restaurant'
+        'admin.html',
+        stores=stores
     )
 
 
-@app.route('/cafes')
+# ─────────────────────────────────────────────
+# DELETE STORE
+# ─────────────────────────────────────────────
+@app.route('/delete/<int:id>')
 @login_required
-def cafes():
+def delete_store(id):
 
-    stores = db.session.scalars(
-        sa.select(Recommendation)
-        .where(Recommendation.category == 'cafe')
-        .order_by(Recommendation.id.desc())
-    ).all()
+    if not current_user.is_admin:
 
-    return render_template(
-        'listing.html',
-        stores=stores,
-        title='Cafes',
-        category='cafe'
+        flash("Access denied.")
+
+        return redirect(url_for('home'))
+
+    store = db.session.get(
+        Recommendation,
+        id
     )
 
+    if store:
 
-@app.route('/attractions')
-@login_required
-def attractions():
+        db.session.delete(store)
 
-    stores = db.session.scalars(
-        sa.select(Recommendation)
-        .where(Recommendation.category == 'attraction')
-        .order_by(Recommendation.id.desc())
-    ).all()
+        db.session.commit()
 
-    return render_template(
-        'listing.html',
-        stores=stores,
-        title='Attractions',
-        category='attraction'
-    )
+    return redirect(url_for('admin'))
