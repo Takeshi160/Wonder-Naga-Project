@@ -25,7 +25,7 @@ ALLOWED_EXTENSIONS = {
 'jpg',
 'jpeg',
 'gif',
-5
+
 'webp'
 }
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -56,7 +56,7 @@ if existing:
 return jsonify({'message': 'Username already exists'}), 400
 user = User(
 username=username,
-6
+
 email=f'{username}@thatsmynaga.com'
 )
 user.set_password(password)
@@ -89,7 +89,6 @@ logout_user()
 return jsonify({'message': 'Logged out'})
 # =====================================================
 # STORE APIs
-7
 # =====================================================
 @app.route('/api/stores/top')
 def api_top_stores():
@@ -122,7 +121,6 @@ query = query.where(Recommendation.category == category)
 if subcategory:
 query = query.where(Recommendation.subcategory == subcategory)
 if search:
-8
 query = query.where(
 Recommendation.title.ilike(f'%{search}%')
 )
@@ -155,7 +153,6 @@ location = request.form.get('location')
 category = request.form.get('category')
 subcategory = request.form.get('subcategory')
 description = request.form.get('description')
-9
 hours = request.form.get('hours')
 contact = request.form.get('contact')
 image_url = None
@@ -189,7 +186,6 @@ return jsonify({
 'message': 'Recommendation added successfully'
 })
 # =====================================================
-10
 # ADMIN PAGE
 # =====================================================
 @app.route('/admin')
