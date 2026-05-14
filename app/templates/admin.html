@@ -1,58 +1,95 @@
 <!DOCTYPE html>
+<html>
+<head>
+<title>ThatsMyNaga Admin</title>
+<style>
+body {
+background: #111;
+color: white;
+font-family: Arial;
+padding: 30px;
+}
+table {
+width: 100%;
+border-collapse: collapse;
+margin-top: 20px;
+}
+th, td {
+border: 1px solid #333;
+padding: 12px;
+text-align: left;
+}
+th {
+background: #222;
+}
+img {
+width: 120px;
+height: 80px;
+object-fit: cover;
+border-radius: 10px;
+}
+.delete-btn {
+background: crimson;
+color: white;
+padding: 8px 14px;
+border-radius: 8px;
+text-decoration: none;
+}
+.delete-btn:hover {
+opacity: 0.8;
+}
+</style>
+</head>
+<body>
+<h1>ThatsMyNaga Admin Panel</h1>
+<p>Acknowledged by Jerome G. Flores</p>
+<h2>Recommendations</h2>
 <table>
-    <tr>
-        <th>ID</th>
-        <th>Image</th>
-        <th>Name</th>
-        <th>Category</th>
-        <th>Subcategory</th>
-        <th>Location</th>
-        <th>Action</th>
-    </tr>
+<tr>
+<th>ID</th>
+<th>Image</th>
+<th>Name</th>
+<th>Category</th>
+<th>Subcategory</th>
+<th>Location</th>
+<th>Action</th>
+</tr>
+ {% for store in recommendations %}
+<tr>
+<td>{{ store.id }}</td>
+<td>
+ {% if store.image_url %}
+<img src="{{ store.image_url }}">
+ {% endif %}
+</td>
+<td>{{ store.title }}</td>
+<td>{{ store.category }}</td>
+<td>{{ store.subcategory }}</td>
+<td>{{ store.location }}</td>
+<td>
+<a class="delete-btn"
+href="{{ url_for('admin_delete', id=store.id) }}">
+ Delete
+</a>
+</td>
+</tr>
+ {% endfor %}
 
-    {% for store in recommendations %}
-    <tr>
-        <td>{{ store.id }}</td>
-
-        <td>
-            {% if store.image_url %}
-                <img src="{{ store.image_url }}">
-            {% endif %}
-        </td>
-
-        <td>{{ store.title }}</td>
-        <td>{{ store.category }}</td>
-        <td>{{ store.subcategory }}</td>
-        <td>{{ store.location }}</td>
-
-        <td>
-            <a class="delete-btn"
-               href="{{ url_for('admin_delete', id=store.id) }}">
-               Delete
-            </a>
-        </td>
-    </tr>
-    {% endfor %}
 </table>
-
-
 <h2>Users</h2>
-
 <table>
-    <tr>
-        <th>ID</th>
-        <th>Username</th>
-        <th>Admin</th>
-    </tr>
-
-    {% for user in users %}
-    <tr>
-        <td>{{ user.id }}</td>
-        <td>{{ user.username }}</td>
-        <td>{{ user.is_admin }}</td>
-    </tr>
-    {% endfor %}
+<tr>
+<th>ID</th>
+<th>Username</th>
+<th>Admin</th>
+</tr>
+ {% for user in users %}
+<tr>
+<td>{{ user.id }}</td>
+<td>{{ user.username }}</td>
+<td>{{ user.is_admin }}</td>
+</tr>
+ {% endfor %}
 </table>
-
 </body>
 </html>
