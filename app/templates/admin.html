@@ -1,1 +1,58 @@
+<!DOCTYPE html>
+<table>
+    <tr>
+        <th>ID</th>
+        <th>Image</th>
+        <th>Name</th>
+        <th>Category</th>
+        <th>Subcategory</th>
+        <th>Location</th>
+        <th>Action</th>
+    </tr>
 
+    {% for store in recommendations %}
+    <tr>
+        <td>{{ store.id }}</td>
+
+        <td>
+            {% if store.image_url %}
+                <img src="{{ store.image_url }}">
+            {% endif %}
+        </td>
+
+        <td>{{ store.title }}</td>
+        <td>{{ store.category }}</td>
+        <td>{{ store.subcategory }}</td>
+        <td>{{ store.location }}</td>
+
+        <td>
+            <a class="delete-btn"
+               href="{{ url_for('admin_delete', id=store.id) }}">
+               Delete
+            </a>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+
+<h2>Users</h2>
+
+<table>
+    <tr>
+        <th>ID</th>
+        <th>Username</th>
+        <th>Admin</th>
+    </tr>
+
+    {% for user in users %}
+    <tr>
+        <td>{{ user.id }}</td>
+        <td>{{ user.username }}</td>
+        <td>{{ user.is_admin }}</td>
+    </tr>
+    {% endfor %}
+</table>
+
+</body>
+</html>
