@@ -1,254 +1,530 @@
-{% extends "layout.html" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-{% set active_page = 'home' %}
-{% set page_title = 'Explore Wonder Naga' %}
+<title>ThatsMyNaga</title>
 
-{% block content %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.4.21/vue.global.prod.min.js"></script>
 
-<!-- ───────────────── FEATURED BANNER ───────────────── -->
-<div class="featured-banner">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
 
-  {% if featured %}
+<style>
 
-    {% if featured.image_url %}
-      <img
-        class="featured-cover"
-        src="{{ featured.image_url }}"
-        alt="{{ featured.title }}"
-      />
-    {% endif %}
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
 
-    <div class="featured-content">
-      <div class="featured-tag">✦ Featured Store</div>
+body{
+    background:#0f0f0f;
+    color:white;
+    font-family:'DM Sans',sans-serif;
+}
 
-      <div class="featured-name">
-        {{ featured.title }}
-      </div>
+header{
+    background:#181818;
+    padding:20px;
+    border-bottom:1px solid #2c2c2c;
+}
 
-      <div class="featured-sub">
-        {{ featured.category }} · {{ featured.location }}
-      </div>
+.logo{
+    font-size:28px;
+    font-family:'Playfair Display',serif;
+    color:#d4af37;
+}
+
+.subtitle{
+    color:#888;
+    margin-top:4px;
+}
+
+.container{
+    width:95%;
+    max-width:1400px;
+    margin:auto;
+    padding:30px 0;
+}
+
+.topbar{
+    display:flex;
+    gap:15px;
+    flex-wrap:wrap;
+    margin-bottom:25px;
+}
+
+input,select{
+    background:#1d1d1d;
+    border:1px solid #333;
+    color:white;
+    padding:12px;
+    border-radius:10px;
+}
+
+.search{
+    flex:1;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+    gap:20px;
+}
+
+.card{
+    background:#1a1a1a;
+    border:1px solid #2e2e2e;
+    border-radius:16px;
+    overflow:hidden;
+    transition:.2s;
+}
+
+.card:hover{
+    transform:translateY(-5px);
+    border-color:#d4af37;
+}
+
+.card img{
+    width:100%;
+    height:220px;
+    object-fit:cover;
+}
+
+.card-content{
+    padding:18px;
+}
+
+.card-title{
+    font-size:22px;
+    margin-bottom:8px;
+    font-family:'Playfair Display',serif;
+}
+
+.card-category{
+    color:#d4af37;
+    margin-bottom:8px;
+}
+
+.card-location{
+    color:#aaa;
+    margin-bottom:10px;
+}
+
+.card-description{
+    color:#cfcfcf;
+    line-height:1.5;
+}
+
+.rating{
+    margin-top:14px;
+    color:gold;
+}
+
+.upload-section{
+    margin-top:60px;
+    background:#181818;
+    padding:30px;
+    border-radius:20px;
+    border:1px solid #2d2d2d;
+}
+
+.upload-section h2{
+    margin-bottom:20px;
+}
+
+.form-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:20px;
+}
+
+textarea{
+    background:#1d1d1d;
+    border:1px solid #333;
+    color:white;
+    padding:12px;
+    border-radius:10px;
+    min-height:120px;
+}
+
+.full{
+    grid-column:1/-1;
+}
+
+button{
+    background:#d4af37;
+    color:black;
+    border:none;
+    padding:14px 24px;
+    border-radius:10px;
+    cursor:pointer;
+    font-weight:bold;
+    margin-top:15px;
+}
+
+button:hover{
+    opacity:.9;
+}
+
+.preview-container{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-top:15px;
+}
+
+.preview-container img{
+    width:100px;
+    height:100px;
+    object-fit:cover;
+    border-radius:10px;
+    border:2px solid #333;
+}
+
+.footer{
+    margin-top:50px;
+    text-align:center;
+    color:#777;
+    padding-bottom:30px;
+}
+
+@media(max-width:768px){
+
+    .form-grid{
+        grid-template-columns:1fr;
+    }
+
+}
+
+</style>
+</head>
+<body>
+
+<div id="app">
+
+<header>
+    <div class="logo">ThatsMyNaga</div>
+    <div class="subtitle">
+        Developed by Jerome G. Flores
     </div>
+</header>
 
-  {% else %}
+<div class="container">
 
-    <div class="featured-content">
-      <div class="featured-tag">✦ Featured Store</div>
+    <div class="topbar">
 
-      <div class="featured-name" style="color: var(--muted)">
-        No featured store
-      </div>
-    </div>
-
-  {% endif %}
-
-</div>
-
-<!-- ───────────────── TOP RECOMMENDED ───────────────── -->
-<div class="section-label">Top Recommended</div>
-
-{% if top_stores %}
-
-<div class="store-grid">
-
-  {% for s in top_stores %}
-
-    <a
-      class="store-card"
-      href="{{ url_for('store_detail', id=s.id) }}"
-    >
-
-      <div class="store-img">
-
-        {% if s.image_url %}
-          <img
-            src="{{ s.image_url }}"
-            alt="{{ s.title }}"
-          />
-        {% else %}
-          <span class="store-img-ph">🏪</span>
-        {% endif %}
-
-      </div>
-
-      <div class="store-info">
-
-        <div class="store-name">
-          {{ s.title }}
-        </div>
-
-        <div class="store-desc">
-          {{ s.description[:90] }}{% if s.description|length > 90 %}...{% endif %}
-        </div>
-
-        <div class="store-rating">
-          {{ s.category }} · {{ s.location }}
-        </div>
-
-      </div>
-
-    </a>
-
-  {% endfor %}
-
-</div>
-
-{% else %}
-
-<div class="state-box">
-  <div class="state-icon">🔍</div>
-  <div class="state-title">Nothing here yet</div>
-  <div class="state-sub">No top stores found.</div>
-</div>
-
-{% endif %}
-
-<!-- ───────────────── RECOMMENDATIONS ───────────────── -->
-<div class="section-label">Recommendations</div>
-
-{% if recommendations %}
-
-<div class="store-grid">
-
-  {% for rec in recommendations %}
-
-  <div class="store-card">
-
-    <!-- CLICKABLE CARD -->
-    <a
-      href="{{ url_for('store_detail', id=rec.id) }}"
-      style="text-decoration: none; color: inherit;"
-    >
-
-      <div class="store-img">
-
-        {% if rec.image_url %}
-          <img
-            src="{{ rec.image_url }}"
-            alt="{{ rec.title }}"
-          />
-        {% else %}
-          <span class="store-img-ph">🏪</span>
-        {% endif %}
-
-      </div>
-
-      <div class="store-info">
-
-        <div class="store-name">
-          {{ rec.title }}
-        </div>
-
-        <div class="store-desc">
-          {{ rec.description[:100] }}
-          {% if rec.description|length > 100 %}...{% endif %}
-        </div>
-
-        <div class="store-rating">
-          {{ rec.category }} · {{ rec.location }}
-        </div>
-
-        <div class="store-extra" style="margin-top: 10px;">
-
-          <small>
-            <strong>Reason:</strong>
-            {{ rec.reason }}
-          </small>
-
-          <br>
-
-          <small>
-            <strong>Hours:</strong>
-            {{ rec.hours }}
-          </small>
-
-          {% if rec.contact %}
-          <br>
-          <small>
-            <strong>Contact:</strong>
-            {{ rec.contact }}
-          </small>
-          {% endif %}
-
-        </div>
-
-      </div>
-
-    </a>
-
-    <!-- OWNER ACTIONS -->
-    {% if rec.user_id == current_user.id %}
-
-    <div
-      style="
-        margin-top: 14px;
-        padding: 0 14px 14px;
-        display: flex;
-        gap: 12px;
-      "
-    >
-
-      <!-- EDIT -->
-      <a
-        href="{{ url_for('edit_rec', id=rec.id) }}"
-        style="
-          color: var(--accent);
-          text-decoration: none;
-          font-size: 13px;
-        "
-      >
-        ✏ Edit
-      </a>
-
-      <!-- DELETE -->
-      <form
-        action="{{ url_for('delete_rec', id=rec.id) }}"
-        method="POST"
-        style="display:inline;"
-      >
-
-        <button
-          type="submit"
-          onclick="return confirm('Delete this recommendation?')"
-          style="
-            background: none;
-            border: none;
-            color: #ff6b6b;
-            cursor: pointer;
-            font-size: 13px;
-          "
+        <input
+            class="search"
+            type="text"
+            placeholder="Search places..."
+            v-model="search"
         >
-          🗑 Delete
+
+        <select v-model="category">
+            <option value="">All Categories</option>
+            <option value="restaurant">Restaurant</option>
+            <option value="cafe">Cafe</option>
+            <option value="attraction">Attraction</option>
+            <option value="motel">Motel</option>
+            <option value="kinalasan">Kinalasan</option>
+            <option value="foodtrip">Food Trip</option>
+        </select>
+
+        <select v-model="sort">
+            <option value="">Sort</option>
+            <option value="az">A-Z</option>
+            <option value="za">Z-A</option>
+            <option value="rating">Star Ratings</option>
+        </select>
+
+    </div>
+
+    <div class="grid">
+
+        <div
+            class="card"
+            v-for="place in filteredPlaces"
+            :key="place.id"
+        >
+
+            <img
+                :src="place.image_url || '/static/default.jpg'"
+                alt=""
+            >
+
+            <div class="card-content">
+
+                <div class="card-title">
+                    {{ place.name }}
+                </div>
+
+                <div class="card-category">
+                    {{ place.category }}
+                </div>
+
+                <div class="card-location">
+                    📍 {{ place.location }}
+                </div>
+
+                <div class="card-description">
+                    {{ place.description }}
+                </div>
+
+                <div class="rating">
+                    ★ {{ place.avg_rating || 'N/A' }}
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- UPLOAD -->
+
+    <div class="upload-section">
+
+        <h2>Add Recommendation</h2>
+
+        <div class="form-grid">
+
+            <input
+                type="text"
+                placeholder="Place Name"
+                v-model="form.name"
+            >
+
+            <input
+                type="text"
+                placeholder="Location"
+                v-model="form.location"
+            >
+
+            <select v-model="form.category">
+
+                <option value="">Select Category</option>
+                <option value="restaurant">Restaurant</option>
+                <option value="cafe">Cafe</option>
+                <option value="attraction">Attraction</option>
+                <option value="motel">Motel</option>
+                <option value="kinalasan">Kinalasan</option>
+                <option value="foodtrip">Food Trip</option>
+
+            </select>
+
+            <input
+                type="text"
+                placeholder="Operating Hours"
+                v-model="form.hours"
+            >
+
+            <textarea
+                class="full"
+                placeholder="Description"
+                v-model="form.description"
+            ></textarea>
+
+            <div class="full">
+
+                <input
+                    type="file"
+                    multiple
+                    @change="previewImages"
+                >
+
+                <div class="preview-container">
+
+                    <img
+                        v-for="(img,index) in previews"
+                        :src="img"
+                        :key="index"
+                    >
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <button @click="submitPlace">
+            Submit Recommendation
         </button>
 
-      </form>
-
     </div>
 
-    {% endif %}
+</div>
 
-  </div>
-
-  {% endfor %}
+<div class="footer">
+    ThatsMyNaga © 2026
+</div>
 
 </div>
 
-{% else %}
+<script>
 
-<div class="state-box">
+const { createApp } = Vue
 
-  <div class="state-icon">📭</div>
+createApp({
 
-  <div class="state-title">
-    No recommendations yet
-  </div>
+    data(){
 
-  <div class="state-sub">
-    Be the first to add one!
-  </div>
+        return{
 
-</div>
+            places:[],
 
-{% endif %}
+            search:'',
+            category:'',
+            sort:'',
 
-{% endblock %}
+            previews:[],
+
+            form:{
+                name:'',
+                location:'',
+                category:'',
+                hours:'',
+                description:'',
+                images:[]
+            }
+
+        }
+
+    },
+
+    computed:{
+
+        filteredPlaces(){
+
+            let data=[...this.places]
+
+            if(this.search){
+
+                data=data.filter(p=>
+                    p.name.toLowerCase()
+                    .includes(this.search.toLowerCase())
+                )
+
+            }
+
+            if(this.category){
+
+                data=data.filter(p=>
+                    p.category===this.category
+                )
+
+            }
+
+            if(this.sort==='az'){
+
+                data.sort((a,b)=>
+                    a.name.localeCompare(b.name)
+                )
+
+            }
+
+            if(this.sort==='za'){
+
+                data.sort((a,b)=>
+                    b.name.localeCompare(a.name)
+                )
+
+            }
+
+            if(this.sort==='rating'){
+
+                data.sort((a,b)=>
+                    (b.avg_rating||0)-(a.avg_rating||0)
+                )
+
+            }
+
+            return data
+
+        }
+
+    },
+
+    methods:{
+
+        async loadPlaces(){
+
+            const res=await fetch('/api/stores')
+            this.places=await res.json()
+
+        },
+
+        previewImages(e){
+
+            this.previews=[]
+
+            this.form.images=[...e.target.files]
+
+            this.form.images.forEach(file=>{
+
+                const reader=new FileReader()
+
+                reader.onload=(event)=>{
+
+                    this.previews.push(event.target.result)
+
+                }
+
+                reader.readAsDataURL(file)
+
+            })
+
+        },
+
+        async submitPlace(){
+
+            const fd=new FormData()
+
+            fd.append('name',this.form.name)
+            fd.append('location',this.form.location)
+            fd.append('category',this.form.category)
+            fd.append('hours',this.form.hours)
+            fd.append('description',this.form.description)
+
+            this.form.images.forEach(img=>{
+
+                fd.append('images',img)
+
+            })
+
+            const res=await fetch('/api/recommendations',{
+
+                method:'POST',
+                body:fd
+
+            })
+
+            if(res.ok){
+
+                alert('Recommendation Added!')
+
+                this.loadPlaces()
+
+            }else{
+
+                alert('Upload Failed')
+
+            }
+
+        }
+
+    },
+
+    mounted(){
+
+        this.loadPlaces()
+
+    }
+
+}).mount('#app')
+
+</script>
+
+</body>
+</html>
