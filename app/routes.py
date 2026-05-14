@@ -1,4 +1,24 @@
 import os
+                unique_name
+            )
+
+            file.save(filepath)
+
+            image_url = f'/static/uploads/{unique_name}'
+
+    recommendation = Recommendation(
+        title=title,
+        reason=reason,
+        location=location,
+        category=category,
+        subcategory=subcategory,
+        description=description,
+        hours=hours,
+        contact=contact,
+        image_url=image_url,
+        rating=5.0
+    )
+
     db.session.add(recommendation)
     db.session.commit()
 
