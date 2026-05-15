@@ -4,7 +4,7 @@ from app.models import Place, Recommendation, User, Report, SubCategory, Recomme
 from app.forms import RecommendationForm, LoginForm, RegistrationForm
 from werkzeug.utils import secure_filename
 from flask_login import login_required, login_user, logout_user, current_user
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, verify_jwt_in_request
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import uuid
@@ -40,14 +40,40 @@ def allowed_file(filename):
     )
 
 def admin_required(f):
-    """Decorator to check if current user is admin"""
+    """Decorator to check if current user is admin (supports both Flask-Login and JWT)"""
     from functools import wraps
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or current_user.role != 'admin':
-            return jsonify({'error': 'Admin access required'}), 403
-        return f(*args, **kwargs)
+        # Check Flask-Login first
+        if current_user.is_authenticated and current_user.role == 'admin':
+            return f(*args, **kwargs)
+        # Then check JWT
+        try:
+            verify_jwt_in_request(optional=True)
+            jwt_user_id = get_jwt_identity()
+            if jwt_user_id:
+                user = User.query.get(int(jwt_user_id))
+                if user and user.role == 'admin':
+                    return f(*args, **kwargs)
+        except Exception:
+            pass
+        return jsonify({'error': 'Admin access required'}), 403
     return decorated_function
+
+def get_current_user_for_template():
+    """Get current user for template rendering (supports both Flask-Login and JWT)"""
+    if current_user.is_authenticated:
+        return current_user
+    try:
+        verify_jwt_in_request(optional=True)
+        jwt_user_id = get_jwt_identity()
+        if jwt_user_id:
+            user = User.query.get(int(jwt_user_id))
+            if user:
+                return user
+    except Exception:
+        pass
+    return None
 
 # =========================================
 # AUTH API ROUTES (FOR VUE APP)
@@ -58,10 +84,12 @@ def api_login():
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
-    
+
     user = User.query.filter_by(username=username).first()
     if user and check_password_hash(user.password, password):
         token = create_access_token(identity=str(user.id))
+        # Also create a Flask session for Jinja2 pages
+        login_user(user)
         return jsonify({
             'token': token,
             'id': user.id,
@@ -69,7 +97,7 @@ def api_login():
             'name': user.username,
             'role': user.role
         })
-    
+
     return jsonify({'error': 'Invalid credentials'}), 401
 
 @app.route('/api/auth/register', methods=['POST'])
@@ -78,10 +106,10 @@ def api_register():
     username = data.get('username')
     password = data.get('password')
     name = data.get('name', username)
-    
+
     if User.query.filter_by(username=username).first():
         return jsonify({'error': 'Username already exists'}), 400
-    
+
     user = User(
         username=username,
         password=generate_password_hash(password),
@@ -89,8 +117,10 @@ def api_register():
     )
     db.session.add(user)
     db.session.commit()
-    
+
     token = create_access_token(identity=str(user.id))
+    # Also create Flask session
+    login_user(user)
     return jsonify({
         'token': token,
         'id': user.id,
@@ -101,6 +131,7 @@ def api_register():
 
 @app.route('/api/auth/logout', methods=['POST'])
 def api_logout():
+    logout_user()
     return jsonify({'message': 'Logged out'})
 
 @app.route('/api/auth/me', methods=['GET'])
@@ -125,7 +156,7 @@ def api_featured():
     rec = Recommendation.query.first()
     if not rec:
         return jsonify({})
-    
+
     return jsonify({
         'id': rec.id,
         'name': rec.title,
@@ -172,22 +203,22 @@ def api_stores():
     category = request.args.get('category', '')
     search = request.args.get('search', '')
     sub_category = request.args.get('sub_category', '')
-    
+
     query = Recommendation.query
-    
+
     if category:
         query = query.filter_by(category=category)
-    
+
     if sub_category:
         query = query.filter_by(sub_category_id=sub_category)
-    
+
     if search:
         query = query.filter(
             Recommendation.title.ilike(f"%{search}%") | 
             Recommendation.description.ilike(f"%{search}%") |
             Recommendation.location.ilike(f"%{search}%")
         )
-    
+
     recs = query.all()
     return jsonify([
         {
@@ -213,9 +244,9 @@ def api_stores():
 @app.route('/api/stores/<int:id>', methods=['GET'])
 def api_store_detail(id):
     rec = Recommendation.query.get_or_404(id)
-    
+
     images = [img.url for img in rec.images.all()] if hasattr(rec, 'images') else []
-    
+
     return jsonify({
         'id': rec.id,
         'name': rec.title,
@@ -229,8 +260,8 @@ def api_store_detail(id):
         'reason': rec.reason,
         'author': rec.author.username if rec.author else 'Unknown',
         'sub_category': {
-            'name': rec.sub_category.name,
-            'icon': rec.sub_category.icon
+            'name': r.sub_category.name,
+            'icon': r.sub_category.icon
         } if rec.sub_category else None,
         'gallery': images,
         'reviews': []
@@ -365,11 +396,11 @@ def api_add_recommendation():
 def api_edit_recommendation(id):
     user_id = get_jwt_identity()
     rec = Recommendation.query.get_or_404(id)
-    
+
     user = User.query.get(int(user_id))
     if rec.user_id != user.id and user.role != 'admin':
         return jsonify({'error': 'Not authorized'}), 403
-    
+
     rec.title = request.form.get('name', rec.title)
     rec.location = request.form.get('location', rec.location)
     rec.category = request.form.get('category', rec.category)
@@ -377,11 +408,11 @@ def api_edit_recommendation(id):
     rec.hours = request.form.get('hours', rec.hours)
     rec.reason = request.form.get('reason', rec.reason)
     rec.contact = request.form.get('contact', rec.contact)
-    
+
     sub_category_id = request.form.get('sub_category_id')
     if sub_category_id:
         rec.sub_category_id = sub_category_id
-    
+
     files = request.files.getlist('images')
     if files and files[0]:
         file = files[0]
@@ -395,7 +426,7 @@ def api_edit_recommendation(id):
             }
             mime = mime_types.get(ext, 'image/jpeg')
             rec.image_url = f"data:{mime};base64,{base64_string}"
-    
+
     db.session.commit()
     return jsonify({'message': 'Recommendation updated successfully'})
 
@@ -404,11 +435,11 @@ def api_edit_recommendation(id):
 def api_delete_recommendation(id):
     user_id = get_jwt_identity()
     rec = Recommendation.query.get_or_404(id)
-    
+
     user = User.query.get(int(user_id))
     if rec.user_id != user.id and user.role != 'admin':
         return jsonify({'error': 'Not authorized'}), 403
-    
+
     db.session.delete(rec)
     db.session.commit()
     return jsonify({'message': 'Recommendation deleted successfully'})
@@ -422,17 +453,17 @@ def api_delete_recommendation(id):
 def api_create_report():
     user_id = get_jwt_identity()
     data = request.get_json()
-    
+
     store_id = data.get('store_id')
     reason = data.get('reason')
-    
+
     if not store_id or not reason:
         return jsonify({'error': 'Store ID and reason are required'}), 400
-    
+
     existing = Report.query.filter_by(store_id=store_id, reporter_id=user_id).first()
     if existing:
         return jsonify({'error': 'You have already reported this store'}), 400
-    
+
     report = Report(
         store_id=store_id,
         reporter_id=user_id,
@@ -441,7 +472,7 @@ def api_create_report():
     )
     db.session.add(report)
     db.session.commit()
-    
+
     return jsonify({'message': 'Report submitted successfully'})
 
 @app.route('/api/reports', methods=['GET'])
@@ -570,10 +601,10 @@ def api_add_sub_category():
     name = data.get('name')
     icon = data.get('icon', '📌')
     category = data.get('category')
-    
+
     if not name or not category:
         return jsonify({'error': 'Name and category are required'}), 400
-    
+
     sub = SubCategory(name=name, icon=icon, category=category)
     db.session.add(sub)
     db.session.commit()
@@ -605,29 +636,29 @@ def home():
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('home'))
-    
+
     form = LoginForm()
     error = None
-    
+
     if form.validate_on_submit():
         user = User.query.filter_by(username=form.username.data).first()
-        
+
         if user and check_password_hash(user.password, form.password.data):
             login_user(user, remember=form.remember_me.data)
             return redirect(url_for('home'))
         else:
             error = 'Invalid username or password'
-    
+
     return render_template('auth.html', mode='login', form=form, error=error)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('home'))
-    
+
     form = RegistrationForm()
     error = None
-    
+
     if form.validate_on_submit():
         user = User(
             username=form.username.data,
@@ -636,10 +667,10 @@ def register():
         )
         db.session.add(user)
         db.session.commit()
-        
+
         login_user(user)
         return redirect(url_for('home'))
-    
+
     return render_template('auth.html', mode='register', form=form, error=error)
 
 @app.route('/logout')
@@ -649,7 +680,36 @@ def logout():
 
 @app.route('/admin')
 def admin():
-    return render_template('admin.html')
+    # Support both Flask-Login session and JWT token
+    user = get_current_user_for_template()
+
+    if not user or user.role != 'admin':
+        return render_template('admin.html', 
+            current_user=user,
+            total_users=0,
+            total_stores=0,
+            pending_reports=[],
+            users=[],
+            all_stores=[],
+            dynamic_subcats=[]
+        )
+
+    total_users = User.query.count()
+    total_stores = Recommendation.query.count()
+    pending_reports = Report.query.filter_by(status='pending').all()
+    users = User.query.all()
+    all_stores = Recommendation.query.all()
+    dynamic_subcats = SubCategory.query.all()
+
+    return render_template('admin.html',
+        current_user=user,
+        total_users=total_users,
+        total_stores=total_stores,
+        pending_reports=pending_reports,
+        users=users,
+        all_stores=all_stores,
+        dynamic_subcats=dynamic_subcats
+    )
 
 @app.route('/store/<int:id>')
 def store_detail(id):
@@ -662,7 +722,7 @@ def add():
     if form.validate_on_submit():
         image_url = None
         files = request.files.getlist('images')
-        
+
         if files and files[0]:
             file = files[0]
             if allowed_file(file.filename):
@@ -675,7 +735,7 @@ def add():
                 }
                 mime = mime_types.get(ext, 'image/jpeg')
                 image_url = f"data:{mime};base64,{base64_string}"
-        
+
         rec = Recommendation(
             title=form.name.data,
             reason=form.reason.data,
@@ -688,12 +748,12 @@ def add():
             avg_rating=5,
             user_id=current_user.id if current_user.is_authenticated else 1
         )
-        
+
         db.session.add(rec)
         db.session.commit()
-        
+
         return redirect(url_for('home'))
-    
+
     return render_template('add.html', form=form)
 
 @app.route('/restaurants')
@@ -725,12 +785,12 @@ def places():
 def search():
     q = request.args.get('q', '').strip()
     category = request.args.get('category', '').strip()
-    
+
     if not q:
         return redirect(url_for('home'))
-    
+
     from sqlalchemy import or_
-    
+
     query = Recommendation.query.filter(
         or_(
             Recommendation.title.ilike(f'%{q}%'),
@@ -739,12 +799,12 @@ def search():
             Recommendation.reason.ilike(f'%{q}%')
         )
     )
-    
+
     if category:
         query = query.filter_by(category=category)
-    
+
     items = query.all()
-    
+
     return render_template('search.html', 
                          items=items, 
                          q=q, 
