@@ -55,12 +55,12 @@
       </div>
       <div class="form-group">
         <div class="form-label">Category</div>
-        {{ form.category(class="form-select") }}
+        {{ form.category(class="form-select", onchange="window.location.href='/add?category='+this.value") }}
       </div>
       <div class="form-group">
-    <div class="form-label">Sub-Category</div>
-    {{ form.sub_category(class="form-select") }}
-</div>
+        <div class="form-label">Sub-Category</div>
+        {{ form.sub_category(class="form-select") }}
+      </div>
       <div class="form-group">
         <div class="form-label">Operating Hours</div>
         {{ form.hours(class="form-input") }}

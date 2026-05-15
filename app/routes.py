@@ -139,10 +139,21 @@ def store_detail(id):
 def add():
     form = RecommendationForm()
     
-    # Populate sub-category choices based on main category
-    form.sub_category.choices = [(str(s.id), f"{s.icon} {s.name}") for s in SubCategory.query.all()]
+    # Get category from URL parameter (GET) or form data (POST)
+    if request.method == 'GET':
+        selected_category = request.args.get('category', 'restaurant')
+        # Pre-select for GET requests (page reload from dropdown)
+        form.category.data = selected_category
+    else:
+        # POST - form was submitted, use form data
+        selected_category = request.form.get('category', 'restaurant')
+    
+    # Filter subcategories by selected category
+    subcategories = SubCategory.query.filter_by(category=selected_category).all()
+    form.sub_category.choices = [(str(s.id), f"{s.icon} {s.name}") for s in subcategories]
     
     if form.validate_on_submit():
+        # ... your existing form submission code ...
         image_url = None
         files = request.files.getlist('images')
         
@@ -174,7 +185,7 @@ def add():
         
         return redirect(url_for('home'))
     
-    return render_template('add.html', form=form)
+    return render_template('add.html', form=form, selected_category=selected_category)
 
 @app.route('/api/recommendations', methods=['POST'])
 def add_recommendation():
