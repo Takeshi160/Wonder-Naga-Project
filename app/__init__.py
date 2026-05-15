@@ -1,39 +1,54 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from flask_login import LoginManager
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
-from dotenv import load_dotenv
 import os
-
-load_dotenv()
 
 app = Flask(__name__)
 
 # =========================
 # CONFIG
 # =========================
-database_url = os.getenv("DATABASE_URL")
 
-if database_url and database_url.startswith("postgres://"):
-    database_url = database_url.replace(
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+# Fix Render PostgreSQL URL
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace(
         "postgres://",
         "postgresql+psycopg://",
         1
     )
 
-app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+# If using normal postgres URL
+elif DATABASE_URL and DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace(
+        "postgresql://",
+        "postgresql+psycopg://",
+        1
+    )
+
+app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["JWT_SECRET_KEY"] = os.getenv("SECRET_KEY", "supersecretkey")
+app.config["SECRET_KEY"] = "wondernaga-secret-key"
+app.config["JWT_SECRET_KEY"] = "wondernaga-jwt-secret"
 
-# Upload Folder
-app.config["UPLOAD_FOLDER"] = "app/static/uploads"
+# Upload folder
+app.config["UPLOAD_FOLDER"] = os.path.join(
+    app.root_path,
+    "static/uploads"
+)
 
 # =========================
-# INIT EXTENSIONS
+# EXTENSIONS
 # =========================
+
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
+login = LoginManager(app)
 jwt = JWTManager(app)
 
 CORS(app)
@@ -41,4 +56,5 @@ CORS(app)
 # =========================
 # IMPORTS
 # =========================
+
 from app import routes, models
