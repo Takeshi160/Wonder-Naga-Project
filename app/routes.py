@@ -1,6 +1,6 @@
-from flask import render_template, request, jsonify, redirect, url_for
+from flask import render_template, request, jsonify, redirect, url_for, flash
 from app import app, db
-from app.models import Place, Recommendation
+from app.models import Place, Recommendation, User
 from app.forms import RecommendationForm
 from werkzeug.utils import secure_filename
 from flask_login import login_required, login_user, logout_user, current_user
@@ -37,18 +37,73 @@ def allowed_file(filename):
     )
 
 # =========================================
+# AUTH ROUTES (LOGIN / SIGNUP / LOGOUT)
+# =========================================
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('home'))
+    
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        user = User.query.filter_by(username=username).first()
+        
+        if user and check_password_hash(user.password_hash, password):
+            login_user(user)
+            return redirect(url_for('home'))
+        else:
+            flash('Invalid username or password')
+    
+    return render_template('login.html')
+
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    if current_user.is_authenticated:
+        return redirect(url_for('home'))
+    
+    if request.method == 'POST':
+        username = request.form.get('username')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        
+        # Check if user already exists
+        if User.query.filter_by(username=username).first():
+            flash('Username already exists')
+            return render_template('signup.html')
+        
+        if User.query.filter_by(email=email).first():
+            flash('Email already exists')
+            return render_template('signup.html')
+        
+        # Create new user
+        user = User(
+            username=username,
+            email=email,
+            password_hash=generate_password_hash(password)
+        )
+        db.session.add(user)
+        db.session.commit()
+        
+        login_user(user)
+        return redirect(url_for('home'))
+    
+    return render_template('signup.html')
+
+@app.route('/logout')
+def logout():
+    logout_user()
+    return redirect(url_for('home'))
+
+# =========================================
 # MAIN PAGES
 # =========================================
 
 @app.route('/')
 def home():
-    # Get featured place (first one, or random)
     featured = Place.query.first()
-    
-    # Get top stores (all places for now, you can limit/sort later)
     top_stores = Place.query.all()
-    
-    # Get user recommendations
     recommendations = Recommendation.query.all()
     
     return render_template('index.html', 
@@ -65,16 +120,8 @@ def admin():
 # API ROUTES
 # =========================================
 
-
-@app.route('/logout')
-@login_required
-def logout():
-    logout_user()
-    return redirect(url_for('home'))
-
 @app.route('/api/stores', methods=['GET'])
 def get_stores():
-
     places = Place.query.all()
 
     return jsonify([
@@ -104,7 +151,6 @@ def store_detail(id):
 def add():
     form = RecommendationForm()
     if form.validate_on_submit():
-        # Handle image upload
         image_url = None
         files = request.files.getlist('images')
         
@@ -117,9 +163,8 @@ def add():
                 file.save(save_path)
                 image_url = f"/static/uploads/{unique_name}"
         
-        # Create Recommendation (not Place!)
         rec = Recommendation(
-            title=form.name.data,  # form has 'name', model has 'title'
+            title=form.name.data,
             reason=form.reason.data,
             location=form.location.data,
             category=form.category.data,
@@ -128,7 +173,7 @@ def add():
             contact=form.contact.data,
             image_url=image_url,
             avg_rating=5,
-            user_id=current_user.id if current_user.is_authenticated else 1  # fallback to admin
+            user_id=current_user.id if current_user.is_authenticated else 1
         )
         
         db.session.add(rec)
@@ -185,12 +230,9 @@ def add_recommendation():
 
 @app.route('/api/delete/<int:id>', methods=['DELETE'])
 def delete_place(id):
-
     place = Place.query.get_or_404(id)
-
     db.session.delete(place)
     db.session.commit()
-
     return jsonify({'message': 'Place deleted'})
 
 
@@ -200,7 +242,6 @@ def delete_place(id):
 
 @app.route('/api/featured')
 def featured_place():
-
     place = Place.query.first()
 
     if not place:
@@ -221,7 +262,6 @@ def featured_place():
 
 @app.route('/api/filter')
 def filter_places():
-
     query = Place.query
 
     category = request.args.get('category')
@@ -292,7 +332,6 @@ def search():
     if not q:
         return redirect(url_for('home'))
     
-    # Search in title, description, location, and reason
     from sqlalchemy import or_
     
     query = Recommendation.query.filter(
@@ -304,7 +343,6 @@ def search():
         )
     )
     
-    # If category filter is applied (from category pages)
     if category:
         query = query.filter_by(category=category)
     
