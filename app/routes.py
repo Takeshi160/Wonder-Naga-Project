@@ -21,7 +21,6 @@ ALLOWED_EXTENSIONS = {
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# Create upload folder if missing
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # =========================================
@@ -29,7 +28,6 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 # =========================================
 
 def allowed_file(filename):
-
     return (
         '.' in filename and
         filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -41,13 +39,11 @@ def allowed_file(filename):
 
 @app.route('/')
 def home():
-
     return render_template('index.html')
 
 
 @app.route('/admin')
 def admin():
-
     return render_template('admin.html')
 
 # =========================================
@@ -59,11 +55,8 @@ def get_stores():
 
     places = Place.query.all()
 
-    data = []
-
-    for p in places:
-
-        data.append({
+    return jsonify([
+        {
             'id': p.id,
             'name': p.name,
             'location': p.location,
@@ -72,9 +65,10 @@ def get_stores():
             'hours': p.hours,
             'image_url': p.image_url,
             'avg_rating': p.avg_rating
-        })
+        }
+        for p in places
+    ])
 
-    return jsonify(data)
 
 # =========================================
 # ADD RECOMMENDATION
@@ -93,7 +87,6 @@ def add_recommendation():
 
     files = request.files.getlist('images')
 
-    # Upload FIRST image
     if files and files[0]:
 
         file = files[0]
@@ -101,7 +94,6 @@ def add_recommendation():
         if file and allowed_file(file.filename):
 
             filename = secure_filename(file.filename)
-
             unique_name = f"{uuid.uuid4()}_{filename}"
 
             save_path = os.path.join(
@@ -126,12 +118,11 @@ def add_recommendation():
     db.session.add(place)
     db.session.commit()
 
-    return jsonify({
-        'message': 'Recommendation added successfully'
-    })
+    return jsonify({'message': 'Recommendation added successfully'})
+
 
 # =========================================
-# DELETE PLACE (ADMIN)
+# DELETE PLACE
 # =========================================
 
 @app.route('/api/delete/<int:id>', methods=['DELETE'])
@@ -142,9 +133,8 @@ def delete_place(id):
     db.session.delete(place)
     db.session.commit()
 
-    return jsonify({
-        'message': 'Place deleted'
-    })
+    return jsonify({'message': 'Place deleted'})
+
 
 # =========================================
 # FEATURED PLACE
@@ -156,7 +146,6 @@ def featured_place():
     place = Place.query.first()
 
     if not place:
-
         return jsonify({})
 
     return jsonify({
@@ -167,8 +156,9 @@ def featured_place():
         'location': place.location
     })
 
+
 # =========================================
-# SEARCH FILTERS
+# FILTER
 # =========================================
 
 @app.route('/api/filter')
@@ -181,34 +171,24 @@ def filter_places():
     sort = request.args.get('sort')
 
     if category:
-
         query = query.filter_by(category=category)
 
     if location:
-
         query = query.filter(
             Place.location.ilike(f"%{location}%")
         )
 
     if sort == 'az':
-
         query = query.order_by(Place.name.asc())
 
     elif sort == 'za':
-
         query = query.order_by(Place.name.desc())
 
     elif sort == 'rating':
-
         query = query.order_by(Place.avg_rating.desc())
 
-    places = query.all()
-
-    results = []
-
-    for p in places:
-
-        results.append({
+    return jsonify([
+        {
             'id': p.id,
             'name': p.name,
             'location': p.location,
@@ -217,6 +197,6 @@ def filter_places():
             'hours': p.hours,
             'image_url': p.image_url,
             'avg_rating': p.avg_rating
-        })
-
-    return jsonify(results)
+        }
+        for p in query.all()
+    ])
