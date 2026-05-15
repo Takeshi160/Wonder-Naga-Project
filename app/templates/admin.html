@@ -10,7 +10,7 @@
   <div class="state-icon">🔒</div>
   <div class="state-title">Access Denied</div>
   <div class="state-sub">You do not have permission to view this page.</div>
-  <a class="btn-retry" href="{{ url_for('index') }}">Go Home</a>
+  <a class="btn-retry" href="{{ url_for('home') }}">Go Home</a>
 </div>
 
 {% else %}
@@ -30,9 +30,8 @@
   <div class="stat-card">
     <div class="stat-icon">🏪</div>
     <div class="stat-value">{{ total_stores or 0 }}</div>
-    <div class="stat-label">Total Stores</div>
+    <div class="stat-label">Total Recommendations</div>
   </div>
-  <!-- Pending Reports — clicking toggles the reports panel -->
   <div class="stat-card" onclick="toggleReports()" style="cursor:pointer;" title="Click to view reports">
     <div class="stat-icon">⚠️</div>
     <div class="stat-value">{{ pending_reports|length if pending_reports else 0 }}</div>
@@ -40,7 +39,7 @@
   </div>
 </div>
 
-<!-- PENDING REPORTS PANEL (hidden until stat card is clicked) -->
+<!-- PENDING REPORTS PANEL -->
 <div class="reports-panel" id="reports-panel">
   <div class="admin-section-title">⚠️ Pending Reports</div>
   {% if pending_reports %}
@@ -54,12 +53,11 @@
       </span>
       <div style="margin-top:8px; display:flex; gap:8px;">
         <form action="{{ url_for('admin_dismiss_report', report_id=report.id) }}" method="POST" style="display:inline;">
-          <button type="submit" class="btn-action btn-edit-sm">✓ Dismiss</button>
-        </form>
-        <form action="{{ url_for('admin_delete_store', store_id=report.store.id) }}" method="POST" style="display:inline;">
-          <button type="submit" class="btn-action btn-delete"
-            onclick="return confirm('Delete store and dismiss report?')">🗑 Delete Store</button>
-        </form>
+    <button type="submit" class="btn-action btn-edit-sm">✓ Dismiss</button>
+</form>
+<form action="{{ url_for('admin_delete_rec', id=report.store.id) }}" method="POST" style="display:inline;">
+    <button type="submit" class="btn-action btn-delete" onclick="return confirm('Delete store and dismiss report?')">🗑 Delete Store</button>
+</form>
       </div>
     </div>
     {% endfor %}
@@ -89,32 +87,29 @@
         <tr>
           <td>{{ u.id }}</td>
           <td>{{ u.username }}</td>
-          <td>{{ u.email }}</td>
+          <td>{{ u.email or '—' }}</td>
           <td>
             <span class="role-badge role-{{ u.role }}">{{ u.role }}</span>
           </td>
           <td>{{ u.created_at.strftime('%b %d, %Y') if u.created_at else '—' }}</td>
           <td class="action-cell">
-            {% if u.id != current_user.id %}
-              {% if u.role != 'admin' %}
-              <form action="{{ url_for('admin_promote', user_id=u.id) }}" method="POST" style="display:inline;">
-                <button type="submit" class="btn-action btn-promote"
-                  onclick="return confirm('Promote {{ u.username }} to admin?')">⬆ Admin</button>
-              </form>
-              {% else %}
-              <form action="{{ url_for('admin_demote', user_id=u.id) }}" method="POST" style="display:inline;">
-                <button type="submit" class="btn-action btn-demote"
-                  onclick="return confirm('Demote {{ u.username }} to user?')">⬇ User</button>
-              </form>
-              {% endif %}
-              <form action="{{ url_for('admin_delete_user', user_id=u.id) }}" method="POST" style="display:inline;">
-                <button type="submit" class="btn-action btn-delete"
-                  onclick="return confirm('Permanently delete user {{ u.username }}?')">🗑 Delete</button>
-              </form>
-            {% else %}
-              <span style="font-size:12px; color:var(--muted);">— (you)</span>
-            {% endif %}
-          </td>
+    {% if u.id != current_user.id %}
+        {% if u.role != 'admin' %}
+        <form action="{{ url_for('admin_promote', user_id=u.id) }}" method="POST" style="display:inline;">
+            <button type="submit" class="btn-action btn-promote" onclick="return confirm('Promote {{ u.username }} to admin?')">⬆ Admin</button>
+        </form>
+        {% else %}
+        <form action="{{ url_for('admin_demote', user_id=u.id) }}" method="POST" style="display:inline;">
+            <button type="submit" class="btn-action btn-demote" onclick="return confirm('Demote {{ u.username }} to user?')">⬇ User</button>
+        </form>
+        {% endif %}
+        <form action="{{ url_for('admin_delete_user', user_id=u.id) }}" method="POST" style="display:inline;">
+            <button type="submit" class="btn-action btn-delete" onclick="return confirm('Permanently delete user {{ u.username }} and all their recommendations?')">🗑 Delete</button>
+        </form>
+    {% else %}
+        <span style="font-size:12px; color:var(--muted);">— (you)</span>
+    {% endif %}
+</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -151,15 +146,14 @@
           <td>{{ s.title }}</td>
           <td>{{ s.category }}</td>
           <td>{{ s.location }}</td>
-          <td>{{ s.user.username if s.user else '—' }}</td>
+          <td>{{ s.author.username if s.author else '—' }}</td>
           <td class="action-cell">
-            <a href="{{ url_for('store_detail', id=s.id) }}" class="btn-action btn-view-sm">👁 View</a>
-            <a href="{{ url_for('edit_rec', id=s.id) }}" class="btn-action btn-edit-sm">✏ Edit</a>
-            <form action="{{ url_for('admin_delete_store', store_id=s.id) }}" method="POST" style="display:inline;">
-              <button type="submit" class="btn-action btn-delete"
-                onclick="return confirm('Delete store {{ s.title }}?')">🗑 Delete</button>
-            </form>
-          </td>
+    <a href="{{ url_for('store_detail', id=s.id) }}" class="btn-action btn-view-sm">👁 View</a>
+    <a href="{{ url_for('edit_rec', id=s.id) }}" class="btn-action btn-edit-sm">✏ Edit</a>
+    <form action="{{ url_for('admin_delete_rec', id=s.id) }}" method="POST" style="display:inline;">
+        <button type="submit" class="btn-action btn-delete" onclick="return confirm('Delete {{ s.title }}?')">🗑 Delete</button>
+    </form>
+</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -176,34 +170,31 @@
 <!-- SUB-CATEGORY MANAGEMENT -->
 <div class="admin-section">
   <div class="admin-section-title">📂 Manage Sub-Categories</div>
-
   <!-- Existing sub-categories -->
-  {% if dynamic_subcats %}
-  <div class="subcat-manage-grid">
+{% if dynamic_subcats %}
+<div class="subcat-manage-grid">
     {% for subcat in dynamic_subcats %}
     <div class="subcat-manage-item">
-      <span>
-        <span class="subcat-manage-icon">{{ subcat.icon }}</span>
-        <span class="subcat-manage-name">{{ subcat.name }}</span>
-      </span>
-      <form action="{{ url_for('admin_delete_subcat', subcat_id=subcat.id) }}" method="POST" style="display:inline;">
-        <button type="submit" class="btn-action btn-delete" title="Delete sub-category"
-          onclick="return confirm('Delete sub-category {{ subcat.name }}?')">✕</button>
-      </form>
+        <span>
+            <span class="subcat-manage-icon">{{ subcat.icon }}</span>
+            <span class="subcat-manage-name">{{ subcat.name }}</span>
+        </span>
+        <form action="{{ url_for('admin_delete_subcat', subcat_id=subcat.id) }}" method="POST" style="display:inline;">
+            <button type="submit" class="btn-action btn-delete" title="Delete sub-category" onclick="return confirm('Delete sub-category {{ subcat.name }}?')">✕</button>
+        </form>
     </div>
     {% endfor %}
-  </div>
-  {% else %}
-  <p style="color:var(--muted); font-size:13px; margin-bottom:14px;">No custom sub-categories yet.</p>
-  {% endif %}
+</div>
+{% else %}
+<p style="color:var(--muted); font-size:13px; margin-bottom:14px;">No custom sub-categories yet.</p>
+{% endif %}
 
-  <!-- Add new sub-category -->
-  <form action="{{ url_for('admin_add_subcat') }}" method="POST" class="add-subcat-form">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+<!-- Add new sub-category -->
+<form action="{{ url_for('admin_add_subcat') }}" method="POST" class="add-subcat-form">
     <input type="text" name="icon" placeholder="Icon (e.g. 🍕)" maxlength="4" style="width:80px;" required />
     <input type="text" name="name" placeholder="Sub-category name" maxlength="40" required />
     <button type="submit" class="btn-add-subcat">＋ Add</button>
-  </form>
+</form>
 </div>
 
 {% endif %}
