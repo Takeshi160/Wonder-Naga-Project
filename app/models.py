@@ -1,11 +1,36 @@
 from app import db
+from flask_login import UserMixin
+
+
+# =========================
+# USER MODEL (REQUIRED FIX)
+# =========================
+
+class User(db.Model, UserMixin):
+    id = db.Column(db.Integer, primary_key=True)
+
+    username = db.Column(
+        db.String(100),
+        unique=True,
+        nullable=False
+    )
+
+    password = db.Column(
+        db.String(200),
+        nullable=False
+    )
+
+    def __repr__(self):
+        return f'<User {self.username}>'
+
+
+# =========================
+# PLACE MODEL (YOUR ORIGINAL)
+# =========================
 
 class Place(db.Model):
 
-    id = db.Column(
-        db.Integer,
-        primary_key=True
-    )
+    id = db.Column(db.Integer, primary_key=True)
 
     name = db.Column(
         db.String(100),
@@ -41,5 +66,4 @@ class Place(db.Model):
     )
 
     def __repr__(self):
-
         return f'<Place {self.name}>'
