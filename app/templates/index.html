@@ -7,7 +7,7 @@
 <!-- FEATURED BANNER -->
 <div class="featured-banner">
   {% if featured %}
-    {% set featured_img = featured.images[0].url if featured.images else featured.image_url %}
+    {% set featured_img = featured.images.first().url if featured.images.first() else featured.image_url %}
     {% if featured_img %}
       <img class="featured-cover" src="{{ featured_img }}" alt="{{ featured.title }}" />
     {% endif %}
@@ -32,7 +32,7 @@
   {% for s in top_stores %}
   <a class="store-card" href="{{ url_for('store_detail', id=s.id) }}">
     <div class="store-img">
-      {% set card_img = s.images[0].url if s.images else s.image_url %}
+      {% set card_img = s.images.first().url if s.images.first() else s.image_url %}
       {% if card_img %}
         <img src="{{ card_img }}" alt="{{ s.title }}" />
       {% else %}
@@ -64,7 +64,8 @@
   <div class="store-card">
     <a href="{{ url_for('store_detail', id=rec.id) }}" style="display:block;">
       <div class="store-img">
-        {% set rec_img = rec.images[0].url if rec.images else rec.image_url %}
+        {% set rec_img = rec.images.first().url if rec.images.first() else rec.image_url %}
+
         {% if rec_img %}
           <img src="{{ rec_img }}" alt="{{ rec.title }}" />
         {% else %}
