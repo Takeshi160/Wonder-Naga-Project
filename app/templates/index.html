@@ -1,121 +1,1228 @@
-{% extends "layout.html" %}
-{% set active_page = 'home' %}
-{% set page_title = 'Explore Wonder Naga' %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>That's My Naga</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.4.21/vue.global.prod.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-{% block content %}
+    :root {
+      --bg:       #0e0e0e;
+      --surface:  #191919;
+      --surface2: #242424;
+      --border:   #2e2e2e;
+      --accent:   #c9a84c;
+      --accent2:  #e8c97a;
+      --text:     #e8e2d9;
+      --muted:    #6b6560;
+      --danger:   #e05c5c;
+      --success:  #4cb85c;
+      --radius:   14px;
+      --sidebar:  220px;
+    }
 
-<!-- FEATURED BANNER -->
-<div class="featured-banner">
-  {% if featured %}
-    {% set featured_img = featured.images.first().url if featured.images.first() else featured.image_url %}
-    {% if featured_img %}
-      <img class="featured-cover" src="{{ featured_img }}" alt="{{ featured.title }}" />
-    {% endif %}
-    <div class="featured-content">
-      <div class="featured-tag">✦ Featured Store</div>
-      <div class="featured-name">{{ featured.title }}</div>
-      <div class="featured-sub">{{ featured.category }} · {{ featured.location }}</div>
-    </div>
-  {% else %}
-    <div class="featured-content">
-      <div class="featured-tag">✦ Featured Store</div>
-      <div class="featured-name" style="color: var(--muted)">No featured store yet</div>
-    </div>
-  {% endif %}
-</div>
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; }
 
-<!-- TOP RECOMMENDED -->
-<div class="section-label">Top Recommended</div>
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-{% if top_stores %}
-<div class="store-grid">
-  {% for s in top_stores %}
-  <a class="store-card" href="#">
-    <div class="store-img">
-      {% set card_img = s.images.first().url if s.images.first() else s.image_url %}
-      {% if card_img %}
-        <img src="{{ card_img }}" alt="{{ s.title }}" />
-      {% else %}
-        <span class="store-img-ph">🏪</span>
-      {% endif %}
-    </div>
-    <div class="store-info">
-      <div class="store-name">{{ s.title }}</div>
-      <div class="store-desc">{{ s.description[:90] }}{% if s.description|length > 90 %}...{% endif %}</div>
-      <div class="store-rating">{{ s.category }} · {{ s.location }}</div>
-    </div>
-  </a>
-  {% endfor %}
-</div>
-{% else %}
-<div class="state-box">
-  <div class="state-icon">🔍</div>
-  <div class="state-title">No top stores found</div>
-  <div class="state-sub">Check back later.</div>
-</div>
-{% endif %}
+    /* ── AUTH ── */
+    .auth-wrap {
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at 50% 30%, #1e1a10 0%, var(--bg) 70%);
+    }
+    .auth-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 20px; padding: 48px 40px; width: 380px;
+      box-shadow: 0 40px 80px rgba(0,0,0,.6);
+    }
+    .auth-logo {
+      font-family: 'Playfair Display', serif; font-size: 13px;
+      letter-spacing: .18em; text-transform: uppercase;
+      color: var(--accent); text-align: center; margin-bottom: 6px;
+    }
+    .auth-title {
+      font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 700;
+      text-align: center; color: var(--text); margin-bottom: 32px;
+    }
+    .auth-tabs {
+      display: flex; gap: 4px; background: var(--bg);
+      border-radius: 10px; padding: 4px; margin-bottom: 28px;
+    }
+    .auth-tab {
+      flex: 1; padding: 9px; border-radius: 7px; border: none;
+      font-family: 'DM Sans', sans-serif; font-size: 13px;
+      cursor: pointer; transition: all .2s; background: transparent; color: var(--muted);
+    }
+    .auth-tab.active { background: var(--surface2); color: var(--text); }
+    .field-label {
+      font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 7px;
+    }
+    .field-input {
+      width: 100%; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 9px; padding: 12px 14px; color: var(--text);
+      font-size: 14px; font-family: 'DM Sans', sans-serif;
+      outline: none; transition: border-color .2s; margin-bottom: 18px;
+    }
+    .field-input:focus { border-color: var(--accent); }
+    .field-input.err { border-color: var(--danger); margin-bottom: 4px; }
+    .field-error { font-size: 11px; color: var(--danger); margin-bottom: 14px; }
+    .btn-primary {
+      width: 100%; padding: 13px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none; border-radius: 10px; color: #1a1200;
+      font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600;
+      cursor: pointer; letter-spacing: .04em;
+      transition: opacity .2s, transform .1s; margin-top: 4px;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .btn-primary:hover:not(:disabled) { opacity: .9; transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
 
-<!-- RECOMMENDATIONS -->
-<div class="section-label">Recommendations</div>
+    .alert-error {
+      background: rgba(224,92,92,.1); border: 1px solid rgba(224,92,92,.3);
+      border-radius: 9px; padding: 10px 14px;
+      font-size: 13px; color: var(--danger); margin-bottom: 16px;
+    }
 
-{% if recommendations %}
-<div class="store-grid">
-  {% for rec in recommendations %}
-  <div class="store-card">
-    <a href="#" style="display:block;">
-      <div class="store-img">
-        {% set rec_img = rec.images.first().url if rec.images.first() else rec.image_url %}
+    /* ── SHELL ── */
+    .app-shell { display: flex; height: 100vh; overflow: hidden; }
 
-        {% if rec_img %}
-          <img src="{{ rec_img }}" alt="{{ rec.title }}" />
-        {% else %}
-          <span class="store-img-ph">🏪</span>
-        {% endif %}
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: var(--sidebar); background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; padding: 28px 0; flex-shrink: 0;
+    }
+    .sidebar-brand {
+      font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 700;
+      color: var(--accent); padding: 0 22px 28px; border-bottom: 1px solid var(--border);
+    }
+    .sidebar-brand span { color: var(--text); }
+    .nav-list { list-style: none; padding: 18px 12px; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 11px 14px; border-radius: 9px; cursor: pointer;
+      color: var(--muted); font-size: 13.5px; transition: background .15s, color .15s;
+    }
+    .nav-item:hover { background: var(--surface2); color: var(--text); }
+    .nav-item.active { background: rgba(201,168,76,.13); color: var(--accent); font-weight: 500; }
+    .nav-icon { font-size: 15px; width: 20px; text-align: center; }
+    .sidebar-footer { padding: 18px 12px 0; border-top: 1px solid var(--border); }
+
+    /* ── MAIN ── */
+    .main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .topbar {
+      height: 62px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 28px; gap: 14px; flex-shrink: 0;
+    }
+    .topbar-title { font-family: 'Playfair Display', serif; font-size: 15px; color: var(--muted); }
+    .search-box {
+      margin-left: auto; display: flex; align-items: center;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 9px; padding: 0 14px; gap: 8px; height: 38px; width: 240px;
+    }
+    .search-box input {
+      background: none; border: none; outline: none;
+      color: var(--text); font-size: 13.5px; font-family: 'DM Sans', sans-serif; width: 100%;
+    }
+    .search-box input::placeholder { color: var(--muted); }
+    .search-icon { color: var(--muted); }
+    .page-content { flex: 1; overflow-y: auto; padding: 30px 32px; }
+    .page-heading { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 700; margin-bottom: 24px; }
+
+    /* ── STATES ── */
+    .state-box {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; min-height: 260px; gap: 12px; color: var(--muted);
+    }
+    .state-icon { font-size: 36px; }
+    .state-title { font-family: 'Playfair Display', serif; font-size: 17px; color: var(--text); }
+    .state-sub { font-size: 13px; }
+    .spinner {
+      width: 32px; height: 32px; border: 2px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .btn-retry {
+      padding: 9px 20px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); font-family: 'DM Sans', sans-serif;
+      font-size: 13px; cursor: pointer; transition: border-color .2s;
+    }
+    .btn-retry:hover { border-color: var(--accent); }
+
+    /* ── FEATURED ── */
+    .featured-banner {
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, #2a1f06 0%, #1a140a 60%, #0e0e0e 100%);
+      border: 1px solid var(--border); height: 200px;
+      display: flex; align-items: flex-end; padding: 22px 26px;
+      margin-bottom: 30px; position: relative; overflow: hidden;
+    }
+    .featured-banner::before {
+      content: ''; position: absolute; inset: 0;
+      background: repeating-linear-gradient(45deg,transparent,transparent 40px,rgba(201,168,76,.03) 40px,rgba(201,168,76,.03) 41px);
+    }
+    .featured-cover { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .35; }
+    .featured-content { position: relative; z-index: 1; }
+    .featured-tag { font-size: 10px; letter-spacing: .15em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
+    .featured-name { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 600; }
+    .featured-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .section-label { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+
+    /* ── GRID ── */
+    .store-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 32px; }
+    .store-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden; cursor: pointer;
+      transition: border-color .2s, transform .15s, box-shadow .2s;
+    }
+    .store-card:hover { border-color: var(--accent); transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,.4); }
+    .store-img { height: 110px; background: var(--surface2); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .store-img img { width: 100%; height: 100%; object-fit: cover; }
+    .store-img-ph { font-size: 32px; color: var(--muted); }
+    .store-info { padding: 12px 14px 14px; }
+    .store-name { font-family: 'Playfair Display', serif; font-size: 14px; font-weight: 600; margin-bottom: 5px; }
+    .store-desc { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+    .store-rating { margin-top: 8px; font-size: 11px; color: var(--accent); }
+
+    /* ── STORE DETAIL ── */
+    .detail-hero {
+      width: 100%; height: 260px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden; position: relative; margin-bottom: 28px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .detail-hero img { width: 100%; height: 100%; object-fit: cover; }
+    .detail-hero-overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(to bottom, transparent 40%, rgba(0,0,0,.65));
+      display: flex; align-items: flex-end; padding: 22px 26px;
+    }
+    .detail-hero-name { font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 700; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-bottom: 28px; }
+    .detail-block-title { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 700; margin-bottom: 10px; }
+    .detail-block-text { font-size: 13px; color: var(--muted); line-height: 1.65; }
+    .detail-meta { margin-top: 14px; font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
+    .mini-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-top: 16px; }
+    .mini-img {
+      height: 70px; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center;
+      font-size: 18px; color: var(--muted);
+    }
+    .mini-img img { width: 100%; height: 100%; object-fit: cover; }
+    .avg-rating { font-size: 32px; font-family: 'Playfair Display', serif; color: var(--accent); margin-bottom: 12px; }
+    .review-list { display: flex; flex-direction: column; gap: 12px; }
+    .review-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+    .review-author { font-size: 12px; color: var(--accent); font-weight: 500; margin-bottom: 4px; }
+    .review-text { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+
+    /* ── ADD FORM ── */
+    .add-form { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+    .form-group { display: flex; flex-direction: column; gap: 7px; }
+    .form-group.full { grid-column: 1 / -1; }
+    .form-label { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+    .form-input, .form-textarea, .form-select {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 9px;
+      padding: 11px 14px; color: var(--text); font-size: 13.5px;
+      font-family: 'DM Sans', sans-serif; outline: none; transition: border-color .2s;
+    }
+    .form-input:focus, .form-textarea:focus, .form-select:focus { border-color: var(--accent); }
+    .form-input.err, .form-textarea.err, .form-select.err { border-color: var(--danger); }
+    .form-error { font-size: 11px; color: var(--danger); }
+    .form-textarea { resize: vertical; min-height: 90px; }
+    .form-select { cursor: pointer; }
+    .upload-box {
+      border: 1.5px dashed var(--border); border-radius: 10px; height: 120px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 8px; cursor: pointer; transition: border-color .2s; color: var(--muted); font-size: 13px;
+    }
+    .upload-box:hover { border-color: var(--accent); color: var(--accent); }
+    .upload-icon { font-size: 28px; }
+    .preview-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+    .preview-item { width: 80px; height: 80px; border-radius: 8px; border: 1px solid var(--border); overflow: hidden; position: relative; }
+    .preview-item img { width: 100%; height: 100%; object-fit: cover; }
+    .preview-remove {
+      position: absolute; top: 4px; right: 4px; width: 18px; height: 18px;
+      border-radius: 50%; background: rgba(0,0,0,.7); border: none; color: #fff;
+      font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    .form-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+    .btn-submit {
+      padding: 12px 32px; background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none; border-radius: 9px; color: #1a1200;
+      font-family: 'DM Sans', sans-serif; font-size: 13.5px; font-weight: 600;
+      cursor: pointer; letter-spacing: .04em; transition: opacity .2s, transform .1s;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .btn-submit:hover:not(:disabled) { opacity: .88; transform: translateY(-1px); }
+    .btn-submit:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-cancel {
+      padding: 12px 22px; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 9px; color: var(--muted); font-family: 'DM Sans', sans-serif;
+      font-size: 13.5px; cursor: pointer; transition: border-color .2s, color .2s;
+    }
+    .btn-cancel:hover { border-color: var(--accent); color: var(--text); }
+    .success-banner {
+      background: rgba(76,184,92,.1); border: 1px solid rgba(76,184,92,.3);
+      border-radius: 9px; padding: 12px 16px; font-size: 13px; color: #6dda7e; margin-bottom: 18px;
+    }
+
+    /* ── ADMIN PANEL ── */
+    .admin-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 24px; text-align: center;
+    }
+    .stat-icon { font-size: 28px; margin-bottom: 8px; }
+    .stat-value { font-family: 'Playfair Display', serif; font-size: 32px; color: var(--accent); }
+    .stat-label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .admin-section { margin-bottom: 32px; }
+    .admin-section-title {
+      font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 600;
+      margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+    }
+    .data-table {
+      width: 100%; background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+    }
+    .data-table-header {
+      display: grid; grid-template-columns: 50px 1fr 1fr 100px 150px 200px;
+      padding: 12px 16px; background: var(--surface2);
+      font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    .data-table-row {
+      display: grid; grid-template-columns: 50px 1fr 1fr 100px 150px 200px;
+      padding: 12px 16px; align-items: center;
+      border-bottom: 1px solid var(--border); font-size: 13px;
+    }
+    .data-table-row:last-child { border-bottom: none; }
+    .role-badge {
+      display: inline-block; padding: 3px 10px; border-radius: 20px;
+      font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-weight: 600;
+    }
+    .role-admin { background: rgba(201,168,76,.15); color: var(--accent); }
+    .role-user { background: rgba(107,101,96,.15); color: var(--muted); }
+    .btn-sm {
+      padding: 6px 14px; border-radius: 6px; font-size: 12px; font-family: 'DM Sans', sans-serif;
+      cursor: pointer; border: none; transition: opacity .2s;
+    }
+    .btn-view { background: rgba(201,168,76,.15); color: var(--accent); }
+    .btn-edit { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-delete { background: rgba(224,92,92,.15); color: var(--danger); }
+    .btn-sm:hover { opacity: .8; }
+    .actions-cell { display: flex; gap: 6px; }
+
+    /* ── RECOMMENDATION CARDS ── */
+    .rec-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    .rec-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+    }
+    .rec-img { height: 140px; background: var(--surface2); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .rec-img img { width: 100%; height: 100%; object-fit: cover; }
+    .rec-info { padding: 14px; }
+    .rec-name { font-family: 'Playfair Display', serif; font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .rec-meta { font-size: 11px; color: var(--accent); margin-bottom: 8px; }
+    .rec-reason { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .rec-detail { font-size: 11px; color: var(--muted); }
+    .rec-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .rec-actions .btn-sm { flex: 1; text-align: center; }
+
+    /* ── MISC ── */
+    .back-row { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+    .btn-back {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      padding: 7px 13px; color: var(--text); cursor: pointer; font-size: 13px;
+      font-family: 'DM Sans', sans-serif; transition: border-color .2s;
+    }
+    .btn-back:hover { border-color: var(--accent); }
+    .badge {
+      display: inline-block; padding: 3px 9px; border-radius: 20px;
+      font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+      background: rgba(201,168,76,.12); color: var(--accent); border: 1px solid rgba(201,168,76,.2);
+    }
+
+    .fade-enter-active, .fade-leave-active { transition: opacity .18s ease; }
+    .fade-enter-from, .fade-leave-to { opacity: 0; }
+  </style>
+<base target="_blank">
+</head>
+<body>
+<div id="app">
+
+  <!-- ═══════ AUTH ═══════ -->
+  <template v-if="!loggedIn">
+    <div class="auth-wrap">
+      <div class="auth-card">
+        <div class="auth-logo">That's My Naga</div>
+        <div class="auth-title">{{ authMode === 'login' ? 'Welcome Back' : 'Create Account' }}</div>
+        <div class="auth-tabs">
+          <button class="auth-tab" :class="{active: authMode==='login'}"    @click="switchAuth('login')">Sign In</button>
+          <button class="auth-tab" :class="{active: authMode==='register'}" @click="switchAuth('register')">Register</button>
+        </div>
+
+        <div v-if="authError" class="alert-error">{{ authError }}</div>
+
+        <template v-if="authMode==='register'">
+          <div class="field-label">Full Name</div>
+          <input class="field-input" :class="{err: fe.name}" type="text" placeholder="Enter full name" v-model="authForm.name"/>
+          <div v-if="fe.name" class="field-error">{{ fe.name }}</div>
+        </template>
+
+        <div class="field-label">Username</div>
+        <input class="field-input" :class="{err: fe.username}" type="text" placeholder="Enter username" v-model="authForm.username"/>
+        <div v-if="fe.username" class="field-error">{{ fe.username }}</div>
+
+        <div class="field-label">Password</div>
+        <input class="field-input" :class="{err: fe.password}" type="password" placeholder="Enter password" v-model="authForm.password"/>
+        <div v-if="fe.password" class="field-error">
+          <template v-if="typeof fe.password === 'string'">{{ fe.password }}</template>
+          <template v-else>
+            <div style="margin-bottom:4px;">Password must include:</div>
+            <ul style="padding-left:16px; display:flex; flex-direction:column; gap:3px;">
+              <li v-for="msg in fe.password" :key="msg">{{ msg }}</li>
+            </ul>
+          </template>
+        </div>
+
+        <template v-if="authMode==='register'">
+          <div class="field-label">Confirm Password</div>
+          <input class="field-input" :class="{err: fe.confirm}" type="password" placeholder="Confirm password" v-model="authForm.confirm"/>
+          <div v-if="fe.confirm" class="field-error">{{ fe.confirm }}</div>
+        </template>
+
+        <button class="btn-primary" :disabled="authLoading" @click="submitAuth">
+          <span v-if="authLoading" class="spinner" style="width:16px;height:16px;border-width:2px;"></span>
+          <span>{{ authMode === 'login' ? 'Sign In' : 'Create Account' }}</span>
+        </button>
       </div>
-      <div class="store-info">
-        <div class="store-name">{{ rec.title }}</div>
-        <div class="store-desc">{{ rec.description[:100] }}{% if rec.description|length > 100 %}...{% endif %}</div>
-<div class="store-rating">
-    {{ rec.category }}
-    {% if rec.sub_category %}· {{ rec.sub_category.icon }} {{ rec.sub_category.name }}{% endif %}
-    · {{ rec.location }}
-    · by {{ rec.author.username if rec.author else 'Unknown' }}
-</div>        <div class="store-extra">
-          <small><strong>Reason:</strong> {{ rec.reason }}</small><br>
-          <small><strong>Hours:</strong> {{ rec.hours }}</small>
-          {% if rec.contact %}<<br><small><strong>Contact:</strong> {{ rec.contact }}</small>{% endif %}
+    </div>
+  </template>
+
+  <!-- ═══════ APP SHELL ═══════ -->
+  <template v-else>
+    <div class="app-shell">
+
+      <aside class="sidebar">
+        <div class="sidebar-brand">That's My <span>Naga</span></div>
+        <ul class="nav-list">
+          <li class="nav-item" :class="{active: page==='home'}"        @click="navigate('home')">        <span class="nav-icon">⌂</span> Home </li>
+          <li class="nav-item" :class="{active: page==='restaurants'}" @click="navigate('restaurants')"> <span class="nav-icon">🍽</span> Restaurants </li>
+          <li class="nav-item" :class="{active: page==='cafes'}"       @click="navigate('cafes')">       <span class="nav-icon">☕</span> Cafes </li>
+          <li class="nav-item" :class="{active: page==='shops'}"      @click="navigate('shops')">      <span class="nav-icon">🛍</span> Shops </li>
+          <li class="nav-item" :class="{active: page==='attractions'}" @click="navigate('attractions')"> <span class="nav-icon">🗺</span> Attractions </li>
+          <li class="nav-item" :class="{active: page==='allplaces'}"   @click="navigate('allplaces')">   <span class="nav-icon">📍</span> All Places </li>
+          <li class="nav-item" :class="{active: page==='add'}"         @click="navigate('add')">         <span class="nav-icon">＋</span> Add Recommendation </li>
+          <li class="nav-item" v-if="isAdmin" :class="{active: page==='admin'}" @click="navigate('admin')">
+            <span class="nav-icon">⚙</span> Admin Panel
+          </li>
+        </ul>
+        <div class="sidebar-footer">
+          <div style="padding: 0 22px 12px; font-size: 11px; color: var(--muted);">
+            {{ currentUser?.name || currentUser?.username || 'User' }}
+          </div>
+          <div class="nav-item" @click="logout"><span class="nav-icon">⎋</span> Sign Out</div>
+        </div>
+      </aside>
+
+      <div class="main-area">
+        <div class="topbar">
+          <div class="topbar-title">{{ pageTitle }}</div>
+          <div class="search-box">
+            <span class="search-icon">⌕</span>
+            <input type="text" placeholder="Search places..." v-model="searchQuery" @input="onSearch"/>
+          </div>
+        </div>
+
+        <div class="page-content">
+          <transition name="fade" mode="out-in">
+
+            <!-- HOME -->
+            <div v-if="page==='home'" key="home">
+              <div class="featured-banner">
+                <template v-if="loadingFeatured">
+                  <div class="featured-content"><div class="spinner"></div></div>
+                </template>
+                <template v-else-if="featured">
+                  <img v-if="featured.image_url" class="featured-cover" :src="resolveImg(featured.image_url)" :alt="featured.name"/>
+                  <div class="featured-content">
+                    <div class="featured-tag">✦ Featured Store</div>
+                    <div class="featured-name">{{ featured.name }}</div>
+                    <div class="featured-sub">{{ featured.category }} · {{ featured.location }}</div>
+                  </div>
+                </template>
+                <template v-else>
+                  <div class="featured-content">
+                    <div class="featured-tag">✦ Featured Store</div>
+                    <div class="featured-name" style="color:var(--muted);">No featured store</div>
+                  </div>
+                </template>
+              </div>
+
+              <div class="section-label">Top Recommended</div>
+              <store-list :stores="topStores" :loading="loadingTop" :error="errorTop" @select="openStore" @retry="fetchTopStores"></store-list>
+
+              <div class="section-label" style="margin-top: 24px;">Recommendations</div>
+              <div v-if="loadingRecs" class="state-box"><div class="spinner"></div></div>
+              <div v-else-if="errorRecs" class="state-box">
+                <div class="state-icon">⚠</div>
+                <div class="state-title">Failed to load</div>
+                <button class="btn-retry" @click="fetchRecommendations">Retry</button>
+              </div>
+              <div v-else-if="!recommendations.length" class="state-box">
+                <div class="state-icon">🔍</div>
+                <div class="state-title">No recommendations yet</div>
+              </div>
+              <div v-else class="rec-grid">
+                <div class="rec-card" v-for="r in recommendations" :key="r.id">
+                  <div class="rec-img">
+                    <img v-if="r.image_url" :src="resolveImg(r.image_url)" :alt="r.title"/>
+                    <span v-else class="store-img-ph">🏪</span>
+                  </div>
+                  <div class="rec-info">
+                    <div class="rec-name">{{ r.title }}</div>
+                    <div class="rec-meta">{{ r.category }} · {{ r.location }} · by {{ r.author || 'unknown' }}</div>
+                    <div class="rec-reason"><strong>Reason:</strong> {{ r.reason }}</div>
+                    <div class="rec-detail">Hours: {{ r.hours || 'N/A' }} | Contact: {{ r.contact || 'N/A' }}</div>
+                    <div class="rec-actions" v-if="canEdit(r)">
+                      <button class="btn-sm btn-edit" @click="editRec(r)">✎ Edit</button>
+                      <button class="btn-sm btn-delete" @click="deleteRec(r.id)">🗑 Delete</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- RESTAURANTS -->
+            <div v-else-if="page==='restaurants'" key="restaurants">
+              <div class="page-heading">Restaurants</div>
+              <store-list :stores="listData" :loading="loadingList" :error="errorList" @select="openStore" @retry="() => fetchList('restaurant')"></store-list>
+            </div>
+
+            <!-- CAFES -->
+            <div v-else-if="page==='cafes'" key="cafes">
+              <div class="page-heading">Cafes</div>
+              <store-list :stores="listData" :loading="loadingList" :error="errorList" @select="openStore" @retry="() => fetchList('cafe')"></store-list>
+            </div>
+
+            <!-- SHOPS -->
+            <div v-else-if="page==='shops'" key="shops">
+              <div class="page-heading">Shops</div>
+              <store-list :stores="listData" :loading="loadingList" :error="errorList" @select="openStore" @retry="() => fetchList('shop')"></store-list>
+            </div>
+
+            <!-- ATTRACTIONS -->
+            <div v-else-if="page==='attractions'" key="attractions">
+              <div class="page-heading">Attractions</div>
+              <store-list :stores="listData" :loading="loadingList" :error="errorList" @select="openStore" @retry="() => fetchList('attraction')"></store-list>
+            </div>
+
+            <!-- ALL PLACES -->
+            <div v-else-if="page==='allplaces'" key="allplaces">
+              <div class="page-heading">All Places</div>
+              <store-list :stores="allPlaces" :loading="loadingAll" :error="errorAll" @select="openStore" @retry="fetchAllPlaces"></store-list>
+            </div>
+
+            <!-- STORE DETAIL -->
+            <div v-else-if="page==='store'" key="store">
+              <div class="back-row">
+                <button class="btn-back" @click="goBack">← Back</button>
+                <div class="badge" v-if="selectedStore">{{ selectedStore.category }}</div>
+              </div>
+
+              <div v-if="loadingStore" class="state-box"><div class="spinner"></div><div class="state-sub">Loading…</div></div>
+
+              <div v-else-if="errorStore" class="state-box">
+                <div class="state-icon">⚠</div>
+                <div class="state-title">Failed to load</div>
+                <div class="state-sub">{{ errorStore }}</div>
+                <button class="btn-retry" @click="fetchStoreDetail(selectedStore.id)">Retry</button>
+              </div>
+
+              <template v-else-if="storeDetail">
+                <div class="detail-hero">
+                  <img v-if="storeDetail.image_url" :src="resolveImg(storeDetail.image_url)" :alt="storeDetail.name"/>
+                  <span v-else style="font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">No Image</span>
+                  <div class="detail-hero-overlay"><div class="detail-hero-name">{{ storeDetail.name }}</div></div>
+                </div>
+
+                <div class="detail-grid">
+                  <div>
+                    <div class="detail-block-title">{{ storeDetail.name }}</div>
+                    <div class="detail-block-text">{{ storeDetail.description }}</div>
+                    <div class="detail-meta">
+                      <span>📍 {{ storeDetail.location }}</span>
+                      <span>🕐 {{ storeDetail.hours }}</span>
+                      <span v-if="storeDetail.contact">📞 {{ storeDetail.contact }}</span>
+                    </div>
+                    <div class="mini-row">
+                      <template v-if="storeDetail.gallery && storeDetail.gallery.length">
+                        <div class="mini-img" v-for="(img,i) in storeDetail.gallery.slice(0,4)" :key="i"><img :src="resolveImg(img)" :alt="'Photo '+(i+1)"/></div>
+                      </template>
+                      <template v-else>
+                        <div class="mini-img" v-for="n in 4" :key="n">🖼</div>
+                      </template>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="detail-block-title">Ratings &amp; Comments</div>
+                    <div class="avg-rating">★ {{ storeDetail.avg_rating ?? '—' }}</div>
+                    <div v-if="storeDetail.reviews && storeDetail.reviews.length" class="review-list">
+                      <div class="review-card" v-for="r in storeDetail.reviews" :key="r.id">
+                        <div class="review-author">{{ r.author }}</div>
+                        <div class="review-text">{{ r.text }}</div>
+                      </div>
+                    </div>
+                    <div v-else style="color:var(--muted);font-size:13px;">No reviews yet.</div>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+            <!-- ADD RECOMMENDATION -->
+            <div v-else-if="page==='add'" key="add">
+              <div class="page-heading">{{ editingRec ? 'Edit Recommendation' : 'Add Recommendation' }}</div>
+              <div v-if="submitSuccess" class="success-banner">✓ {{ editingRec ? 'Updated' : 'Submitted' }} successfully!</div>
+              <div v-if="submitError"  class="alert-error">{{ submitError }}</div>
+              <div class="add-form">
+                <div class="form-group full" style="margin-bottom:18px;">
+                  <div class="form-label">Images</div>
+                  <div class="upload-box" @click="$refs.fileInput.click()">
+                    <span class="upload-icon">🖼</span>
+                    <span>Click to upload images</span>
+                    <input ref="fileInput" type="file" accept="image/*" multiple style="display:none" @change="onFiles"/>
+                  </div>
+                  <div class="preview-row" v-if="addForm.previews.length">
+                    <div class="preview-item" v-for="(src,i) in addForm.previews" :key="i">
+                      <img :src="src"/>
+                      <button class="preview-remove" @click="removeImg(i)">✕</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-grid">
+                  <div class="form-group">
+                    <div class="form-label">Store Name</div>
+                    <input class="form-input" :class="{err: ae.name}" type="text" placeholder="Enter store name" v-model="addForm.name"/>
+                    <div v-if="ae.name" class="form-error">{{ ae.name }}</div>
+                  </div>
+                  <div class="form-group">
+                    <div class="form-label">Reason for Recommending</div>
+                    <input class="form-input" :class="{err: ae.reason}" type="text" placeholder="Why recommend this?" v-model="addForm.reason"/>
+                    <div v-if="ae.reason" class="form-error">{{ ae.reason }}</div>
+                  </div>
+                  <div class="form-group">
+                    <div class="form-label">Store Location</div>
+                    <input class="form-input" :class="{err: ae.location}" type="text" placeholder="Enter address" v-model="addForm.location"/>
+                    <div v-if="ae.location" class="form-error">{{ ae.location }}</div>
+                  </div>
+                  <div class="form-group">
+                    <div class="form-label">Category</div>
+                    <select class="form-select" :class="{err: ae.category}" v-model="addForm.category">
+                      <option value="">Select a category</option>
+                      <option v-for="c in categories" :key="c.value" :value="c.value">{{ c.label }}</option>
+                    </select>
+                    <div v-if="ae.category" class="form-error">{{ ae.category }}</div>
+                  </div>
+                  <div class="form-group">
+                    <div class="form-label">Operating Hours</div>
+                    <input class="form-input" type="text" placeholder="e.g. 8AM–10PM" v-model="addForm.hours"/>
+                  </div>
+                  <div class="form-group">
+                    <div class="form-label">Contact Number (optional)</div>
+                    <input class="form-input" type="text" placeholder="+63 xxx xxx xxxx" v-model="addForm.contact"/>
+                  </div>
+                  <div class="form-group full">
+                    <div class="form-label">Description</div>
+                    <textarea class="form-textarea" :class="{err: ae.description}" placeholder="Describe this place…" v-model="addForm.description"></textarea>
+                    <div v-if="ae.description" class="form-error">{{ ae.description }}</div>
+                  </div>
+                </div>
+
+                <div class="form-footer">
+                  <button class="btn-cancel" @click="clearAddForm">Clear</button>
+                  <button class="btn-submit" :disabled="submitLoading" @click="submitRec">
+                    <span v-if="submitLoading" class="spinner" style="width:14px;height:14px;border-width:2px;"></span>
+                    <span>{{ editingRec ? 'Update Recommendation' : 'Submit Recommendation' }}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- ADMIN PANEL -->
+            <div v-else-if="page==='admin'" key="admin">
+              <div class="page-heading">⚙ Admin Panel</div>
+              <div style="color:var(--muted);font-size:13px;margin-bottom:24px;">Manage all content and users</div>
+
+              <div class="admin-stats">
+                <div class="stat-card">
+                  <div class="stat-icon">👥</div>
+                  <div class="stat-value">{{ adminStats.users }}</div>
+                  <div class="stat-label">Total Users</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-icon">🏪</div>
+                  <div class="stat-value">{{ adminStats.recommendations }}</div>
+                  <div class="stat-label">Total Recommendations</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-icon">⚠️</div>
+                  <div class="stat-value">{{ adminStats.reports }}</div>
+                  <div class="stat-label">Pending Reports</div>
+                </div>
+              </div>
+
+              <div class="admin-section">
+                <div class="admin-section-title">👥 User Management</div>
+                <div class="data-table">
+                  <div class="data-table-header">
+                    <span>#</span><span>Username</span><span>Email</span><span>Role</span><span>Joined</span><span>Actions</span>
+                  </div>
+                  <div class="data-table-row" v-for="(u,i) in adminUsers" :key="u.id">
+                    <span>{{ i+1 }}</span>
+                    <span>{{ u.username }}</span>
+                    <span>{{ u.email || '—' }}</span>
+                    <span><span class="role-badge" :class="u.role==='admin'?'role-admin':'role-user'">{{ u.role }}</span></span>
+                    <span>{{ formatDate(u.created_at) }}</span>
+                    <span class="actions-cell">
+                      <button v-if="u.role!=='admin'" class="btn-sm btn-view" @click="promoteUser(u.id)">↑ Admin</button>
+                      <button class="btn-sm btn-delete" @click="deleteUser(u.id)">🗑 Delete</button>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="admin-section">
+                <div class="admin-section-title">🏪 Store Management</div>
+                <div class="data-table">
+                  <div class="data-table-header">
+                    <span>#</span><span>Name</span><span>Category</span><span>Location</span><span>Added by</span><span>Actions</span>
+                  </div>
+                  <div class="data-table-row" v-for="(s,i) in adminStores" :key="s.id">
+                    <span>{{ i+1 }}</span>
+                    <span>{{ s.title || s.name }}</span>
+                    <span>{{ s.category }}</span>
+                    <span>{{ s.location }}</span>
+                    <span>{{ s.author || '—' }}</span>
+                    <span class="actions-cell">
+                      <button class="btn-sm btn-view" @click="openStore(s)">👁 View</button>
+                      <button class="btn-sm btn-edit" @click="editRec(s)">✎ Edit</button>
+                      <button class="btn-sm btn-delete" @click="deleteRec(s.id)">🗑 Delete</button>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </transition>
         </div>
       </div>
-    </a>
-
-    {# Report button - show to everyone except the owner #}
-{% if current_user.is_authenticated and rec.user_id != current_user.id %}
-<div style="padding: 0 14px 8px;">
-    <form action="{{ url_for('report_store', store_id=rec.id) }}" method="POST" style="display:inline;">
-        <button type="submit" class="btn-action btn-report" onclick="return confirm('Report this recommendation?')">🚩 Report</button>
-    </form>
+    </div>
+  </template>
 </div>
-{% endif %}
 
-{# Show edit/delete only to the owner or admin #}
-{% if current_user.is_authenticated and (rec.user_id == current_user.id or current_user.role == 'admin') %}
-<div style="padding: 0 14px 14px; display:flex; gap:10px;">
-    <a href="{{ url_for('edit_rec', id=rec.id) }}" class="btn-action btn-edit-sm">✏ Edit</a>
-    <form action="{{ url_for('delete_rec', id=rec.id) }}" method="POST" style="display:inline;">
-        <button type="submit" class="btn-action btn-delete" onclick="return confirm('Delete this recommendation?')">🗑 Delete</button>
-    </form>
-</div>
-{% endif %}
-
+<!-- StoreList component template -->
+<script type="text/x-template" id="store-list-tpl">
+  <div>
+    <div v-if="loading" class="state-box"><div class="spinner"></div><div class="state-sub">Loading…</div></div>
+    <div v-else-if="error" class="state-box">
+      <div class="state-icon">⚠</div>
+      <div class="state-title">Something went wrong</div>
+      <div class="state-sub">{{ error }}</div>
+      <button class="btn-retry" @click="$emit('retry')">Retry</button>
+    </div>
+    <div v-else-if="!stores || !stores.length" class="state-box">
+      <div class="state-icon">🔍</div>
+      <div class="state-title">Nothing here yet</div>
+      <div class="state-sub">No entries found.</div>
+    </div>
+    <div v-else class="store-grid">
+      <div class="store-card" v-for="s in stores" :key="s.id" @click="$emit('select', s)">
+        <div class="store-img">
+          <img v-if="s.image_url" :src="resolveImg(s.image_url)" :alt="s.name"/>
+          <span v-else class="store-img-ph">🏪</span>
+        </div>
+        <div class="store-info">
+          <div class="store-name">{{ s.name }}</div>
+          <div class="store-desc">{{ s.description }}</div>
+          <div class="store-rating">★ {{ s.avg_rating ?? '—' }} &nbsp;·&nbsp; {{ s.location }}</div>
+        </div>
+      </div>
+    </div>
   </div>
-  {% endfor %}
-</div>
-{% else %}
-<div class="state-box">
-  <div class="state-icon">📭</div>
-  <div class="state-title">No recommendations yet</div>
-  <div class="state-sub">Be the first to add one!</div>
-</div>
-{% endif %}
+</script>
 
-{% endblock %}
+<script>
+const API = (() => {
+  const BASE_URL = 'https://wonder-naga-project.onrender.com/api';
+  let token = localStorage.getItem('token') || null;
+  let user = null;
+
+  // Restore user from localStorage on init
+  const savedUser = localStorage.getItem('user');
+  if (savedUser) {
+    try { user = JSON.parse(savedUser); } catch(e) { user = null; }
+  }
+
+  const setToken   = t  => { token = t; if (t) localStorage.setItem('token', t); else localStorage.removeItem('token'); };
+  const setUser    = u  => { user = u; if (u) localStorage.setItem('user', JSON.stringify(u)); else localStorage.removeItem('user'); };
+  const getUser    = () => user;
+  const clearToken = () => { token = null; user = null; localStorage.removeItem('token'); localStorage.removeItem('user'); };
+
+  async function req(method, path, body = null) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const opts = { method, headers };
+    if (body) opts.body = JSON.stringify(body);
+    const res = await fetch(`${BASE_URL}${path}`, opts);
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.message || `HTTP ${res.status}`);
+    }
+    return res.json();
+  }
+
+  async function upload(path, formData) {
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers, body: formData });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.message || `HTTP ${res.status}`);
+    }
+    return res.json();
+  }
+
+  return {
+    setToken, setUser, getUser, clearToken,
+    login:    body => req('POST', '/auth/login',    body),
+    register: body => req('POST', '/auth/register', body),
+    logout:   ()   => req('POST', '/auth/logout'),
+    getFeatured:  ()           => req('GET', '/stores/featured'),
+    getTopStores: ()           => req('GET', '/stores/top'),
+    getStores:    (cat, q='') => req('GET', `/stores?category=${cat}&search=${encodeURIComponent(q)}`),
+    getStore:     id           => req('GET', `/stores/${id}`),
+    getAllPlaces: ()           => req('GET', '/stores/all'),
+    getRecommendations: ()     => req('GET', '/recommendations'),
+    addRecommendation: fd => upload('/recommendations', fd),
+    updateRecommendation: (id, fd) => upload(`/recommendations/${id}`, fd),
+    deleteRecommendation: id => req('DELETE', `/recommendations/${id}`),
+    getAdminStats: ()          => req('GET', '/admin/stats'),
+    getAdminUsers: ()          => req('GET', '/admin/users'),
+    getAdminStores: ()         => req('GET', '/admin/stores'),
+    promoteUser: id           => req('POST', `/admin/users/${id}/promote`),
+    deleteUser: id            => req('DELETE', `/admin/users/${id}`),
+    getCategories: ()         => req('GET', '/categories'),
+  };
+})();
+
+const { createApp, ref, computed } = Vue;
+
+const StoreList = {
+  template: '#store-list-tpl',
+  props: {
+    stores:  { type: Array,   default: () => [] },
+    loading: { type: Boolean, default: false },
+    error:   { type: String,  default: null },
+  },
+  emits: ['select', 'retry'],
+  setup() {
+    const resolveImg = (url) => {
+      if (!url) return '';
+      if (url.startsWith('data:') || url.startsWith('http')) return url;
+      return 'data:image/jpeg;base64,' + url;
+    };
+    return { resolveImg };
+  }
+};
+
+createApp({
+  components: { StoreList },
+  setup() {
+    const loggedIn    = ref(false);
+    const authMode    = ref('login');
+    const authLoading = ref(false);
+    const authError   = ref(null);
+    const fe          = ref({});
+    const authForm    = ref({ name: '', username: '', password: '', confirm: '' });
+    const currentUser = ref(null);
+    const isAdmin     = computed(() => currentUser.value?.role === 'admin');
+
+    // ── RESTORE SESSION FROM LOCALSTORAGE ──
+    const savedToken = localStorage.getItem('token');
+    const savedUser  = localStorage.getItem('user');
+    if (savedToken && savedUser) {
+      try {
+        const parsed = JSON.parse(savedUser);
+        currentUser.value = parsed;
+        loggedIn.value = true;
+        API.setToken(savedToken);
+        API.setUser(parsed);
+      } catch(e) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
+    }
+
+    function switchAuth(mode) { authMode.value = mode; authError.value = null; fe.value = {}; }
+
+    function validateAuth() {
+      const e = {};
+      if (authMode.value === 'register' && !authForm.value.name.trim()) e.name = 'Full name is required.';
+      if (!authForm.value.username.trim())  e.username = 'Username is required.';
+      if (!authForm.value.password) {
+        e.password = ['Password is required.'];
+      } else {
+        const p = authForm.value.password;
+        const errs = [];
+        if (p.length < 8 || p.length > 12) errs.push('8–12 characters long');
+        if (!/[A-Z]/.test(p))              errs.push('at least one uppercase letter');
+        if (!/[a-z]/.test(p))              errs.push('at least one lowercase letter');
+        if (!/[0-9]/.test(p))              errs.push('at least one number');
+        if (!/[^A-Za-z0-9]/.test(p))       errs.push('at least one symbol (e.g. @, #, !)');
+        if (errs.length) e.password = errs;
+      }
+      if (authMode.value === 'register' && authForm.value.password !== authForm.value.confirm)
+        e.confirm = 'Passwords do not match.';
+      fe.value = e;
+      return !Object.keys(e).length;
+    }
+
+    async function submitAuth() {
+      authError.value = null;
+      if (!validateAuth()) return;
+      authLoading.value = true;
+      try {
+        const payload = { username: authForm.value.username, password: authForm.value.password };
+        if (authMode.value === 'register') payload.name = authForm.value.name;
+        const data = await (authMode.value === 'login' ? API.login(payload) : API.register(payload));
+        API.setToken(data.token);
+        API.setUser(data);
+        currentUser.value = data;
+        loggedIn.value = true;
+        fetchHome();
+      } catch(e) {
+        authError.value = e.message;
+      } finally {
+        authLoading.value = false;
+      }
+    }
+
+    function logout() {
+      API.logout().catch(() => {});
+      API.clearToken();
+      currentUser.value = null;
+      loggedIn.value = false;
+    }
+
+    function resolveImg(url) {
+      if (!url) return '';
+      if (url.startsWith('data:') || url.startsWith('http')) return url;
+      return 'data:image/jpeg;base64,' + url;
+    }
+
+    const page        = ref('home');
+    const prevPage    = ref('home');
+    const searchQuery = ref('');
+    let   searchTimer = null;
+
+    const pageTitle = computed(() => ({
+      home:        "Explore That's My Naga",
+      restaurants: 'Restaurants',
+      cafes:       'Cafes',
+      shops:       'Shops',
+      attractions: 'Attractions',
+      allplaces:   'All Places',
+      store:       storeDetail.value?.name || selectedStore.value?.name || 'Store Detail',
+      add:         'Add Recommendation',
+      admin:       'Admin Panel',
+    }[page.value] || ''));
+
+    function navigate(p) {
+      prevPage.value  = page.value;
+      page.value      = p;
+      searchQuery.value = '';
+      errorList.value = null;
+      if (p === 'home')        fetchHome();
+      if (p === 'restaurants') fetchList('restaurant');
+      if (p === 'cafes')       fetchList('cafe');
+      if (p === 'shops')       fetchList('shop');
+      if (p === 'attractions') fetchList('attraction');
+      if (p === 'allplaces')   fetchAllPlaces();
+      if (p === 'admin')       fetchAdminData();
+    }
+
+    function goBack() {
+      page.value     = prevPage.value;
+      storeDetail.value = null;
+    }
+
+    function onSearch() {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        const catMap = { restaurants: 'restaurant', cafes: 'cafe', shops: 'shop', attractions: 'attraction' };
+        const cat = catMap[page.value];
+        if (cat) fetchList(cat, searchQuery.value);
+      }, 400);
+    }
+
+    const featured        = ref(null);
+    const loadingFeatured = ref(false);
+    const topStores       = ref([]);
+    const loadingTop      = ref(false);
+    const errorTop        = ref(null);
+    const recommendations = ref([]);
+    const loadingRecs     = ref(false);
+    const errorRecs       = ref(null);
+
+    async function fetchHome() {
+      loadingFeatured.value = true;
+      try { featured.value = await API.getFeatured(); }
+      catch { featured.value = null; }
+      finally { loadingFeatured.value = false; }
+      fetchTopStores();
+      fetchRecommendations();
+    }
+
+    async function fetchTopStores() {
+      loadingTop.value = true; errorTop.value = null;
+      try { topStores.value = await API.getTopStores(); }
+      catch(e) { errorTop.value = e.message; }
+      finally { loadingTop.value = false; }
+    }
+
+    async function fetchRecommendations() {
+      loadingRecs.value = true; errorRecs.value = null;
+      try { recommendations.value = await API.getRecommendations(); }
+      catch(e) { errorRecs.value = e.message; }
+      finally { loadingRecs.value = false; }
+    }
+
+    const listData    = ref([]);
+    const loadingList = ref(false);
+    const errorList   = ref(null);
+    const allPlaces   = ref([]);
+    const loadingAll  = ref(false);
+    const errorAll    = ref(null);
+
+    async function fetchList(category, query = '') {
+      loadingList.value = true; errorList.value = null;
+      try { listData.value = await API.getStores(category, query); }
+      catch(e) { errorList.value = e.message; listData.value = []; }
+      finally { loadingList.value = false; }
+    }
+
+    async function fetchAllPlaces() {
+      loadingAll.value = true; errorAll.value = null;
+      try { allPlaces.value = await API.getAllPlaces(); }
+      catch(e) { errorAll.value = e.message; allPlaces.value = []; }
+      finally { loadingAll.value = false; }
+    }
+
+    const selectedStore = ref(null);
+    const storeDetail   = ref(null);
+    const loadingStore  = ref(false);
+    const errorStore    = ref(null);
+
+    function openStore(s) {
+      prevPage.value = page.value;
+      selectedStore.value = s;
+      storeDetail.value = null;
+      page.value = 'store';
+      fetchStoreDetail(s.id);
+    }
+
+    async function fetchStoreDetail(id) {
+      loadingStore.value = true; errorStore.value = null;
+      try { storeDetail.value = await API.getStore(id); }
+      catch(e) { errorStore.value = e.message; }
+      finally { loadingStore.value = false; }
+    }
+
+    const submitLoading = ref(false);
+    const submitSuccess = ref(false);
+    const submitError   = ref(null);
+    const ae            = ref({});
+    const editingRec    = ref(null);
+
+    const categories = ref([
+      { value: 'restaurant', label: 'Restaurant' },
+      { value: 'cafe',       label: 'Cafe' },
+      { value: 'shop',       label: 'Shop' },
+      { value: 'attraction', label: 'Attraction' },
+    ]);
+
+    const addForm = ref({
+      name: '', reason: '', location: '', category: '',
+      hours: '', contact: '', description: '',
+      files: [], previews: [],
+    });
+
+    function onFiles(e) {
+      Array.from(e.target.files).forEach(f => {
+        addForm.value.files.push(f);
+        const r = new FileReader();
+        r.onload = ev => addForm.value.previews.push(ev.target.result);
+        r.readAsDataURL(f);
+      });
+      e.target.value = '';
+    }
+
+    function removeImg(i) {
+      addForm.value.files.splice(i, 1);
+      addForm.value.previews.splice(i, 1);
+    }
+
+    function validateAdd() {
+      const e = {};
+      if (!addForm.value.name.trim())        e.name        = 'Store name is required.';
+      if (!addForm.value.reason.trim())      e.reason      = 'Reason is required.';
+      if (!addForm.value.location.trim())    e.location    = 'Location is required.';
+      if (!addForm.value.category)           e.category    = 'Please select a category.';
+      if (!addForm.value.description.trim()) e.description = 'Description is required.';
+      ae.value = e;
+      return !Object.keys(e).length;
+    }
+
+    async function submitRec() {
+      submitError.value = null; submitSuccess.value = false;
+      if (!validateAdd()) return;
+      submitLoading.value = true;
+      try {
+        const fd = new FormData();
+        fd.append('name',        addForm.value.name);
+        fd.append('reason',      addForm.value.reason);
+        fd.append('location',    addForm.value.location);
+        fd.append('category',    addForm.value.category);
+        fd.append('hours',       addForm.value.hours);
+        fd.append('contact',     addForm.value.contact);
+        fd.append('description', addForm.value.description);
+        addForm.value.files.forEach(f => fd.append('images', f));
+        
+        if (editingRec.value) {
+          await API.updateRecommendation(editingRec.value.id, fd);
+        } else {
+          await API.addRecommendation(fd);
+        }
+        submitSuccess.value = true;
+        clearAddForm();
+        fetchRecommendations();
+      } catch(e) {
+        submitError.value = e.message;
+      } finally {
+        submitLoading.value = false;
+      }
+    }
+
+    function editRec(r) {
+      editingRec.value = r;
+      addForm.value = {
+        name: r.title || r.name,
+        reason: r.reason,
+        location: r.location,
+        category: r.category,
+        hours: r.hours || '',
+        contact: r.contact || '',
+        description: r.description,
+        files: [],
+        previews: r.image_url ? [resolveImg(r.image_url)] : [],
+      };
+      navigate('add');
+    }
+
+    async function deleteRec(id) {
+      if (!confirm('Are you sure you want to delete this?')) return;
+      try {
+        await API.deleteRecommendation(id);
+        fetchRecommendations();
+        fetchAdminData();
+      } catch(e) {
+        alert('Failed to delete: ' + e.message);
+      }
+    }
+
+    function canEdit(r) {
+      return currentUser.value && (currentUser.value.id === r.user_id || currentUser.value.role === 'admin');
+    }
+
+    function clearAddForm() {
+      addForm.value = { name:'', reason:'', location:'', category:'', hours:'', contact:'', description:'', files:[], previews:[] };
+      ae.value = {};
+      submitError.value = null;
+      editingRec.value = null;
+    }
+
+    const adminStats  = ref({ users: 0, recommendations: 0, reports: 0 });
+    const adminUsers  = ref([]);
+    const adminStores = ref([]);
+    const loadingAdmin = ref(false);
+
+    async function fetchAdminData() {
+      loadingAdmin.value = true;
+      try {
+        const [stats, users, stores] = await Promise.all([
+          API.getAdminStats(),
+          API.getAdminUsers(),
+          API.getAdminStores(),
+        ]);
+        adminStats.value = stats;
+        adminUsers.value = users;
+        adminStores.value = stores;
+      } catch(e) {
+        console.error('Admin fetch failed:', e);
+      } finally {
+        loadingAdmin.value = false;
+      }
+    }
+
+    async function promoteUser(id) {
+      try {
+        await API.promoteUser(id);
+        fetchAdminData();
+      } catch(e) {
+        alert('Failed: ' + e.message);
+      }
+    }
+
+    async function deleteUser(id) {
+      if (!confirm('Delete this user?')) return;
+      try {
+        await API.deleteUser(id);
+        fetchAdminData();
+      } catch(e) {
+        alert('Failed: ' + e.message);
+      }
+    }
+
+    function formatDate(d) {
+      if (!d) return '—';
+      return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    return {
+      loggedIn, authMode, authLoading, authError, fe, authForm, currentUser, isAdmin,
+      switchAuth, submitAuth, logout,
+      page, prevPage, searchQuery, pageTitle, navigate, goBack, onSearch,
+      featured, loadingFeatured, topStores, loadingTop, errorTop,
+      recommendations, loadingRecs, errorRecs,
+      listData, loadingList, errorList, allPlaces, loadingAll, errorAll,
+      selectedStore, storeDetail, loadingStore, errorStore, fetchStoreDetail, openStore,
+      addForm, ae, categories, submitLoading, submitSuccess, submitError, editingRec,
+      onFiles, removeImg, submitRec, clearAddForm, editRec, deleteRec, canEdit,
+      adminStats, adminUsers, adminStores, loadingAdmin, fetchAdminData, promoteUser, deleteUser, formatDate,
+      resolveImg,
+    };
+  }
+}).mount('#app');
+</script>
+</body>
+</html>
