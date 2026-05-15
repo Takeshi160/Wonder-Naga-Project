@@ -62,7 +62,13 @@ def api_login():
     user = User.query.filter_by(username=username).first()
     if user and check_password_hash(user.password, password):
         token = create_access_token(identity=str(user.id))
-        return jsonify({'token': token, 'username': user.username, 'role': user.role})
+        return jsonify({
+            'token': token,
+            'id': user.id,
+            'username': user.username,
+            'name': user.username,
+            'role': user.role
+        })
     
     return jsonify({'error': 'Invalid credentials'}), 401
 
@@ -85,7 +91,13 @@ def api_register():
     db.session.commit()
     
     token = create_access_token(identity=str(user.id))
-    return jsonify({'token': token, 'username': user.username, 'role': user.role})
+    return jsonify({
+        'token': token,
+        'id': user.id,
+        'username': user.username,
+        'name': name or username,
+        'role': user.role
+    })
 
 @app.route('/api/auth/logout', methods=['POST'])
 def api_logout():
@@ -224,6 +236,25 @@ def api_store_detail(id):
         'reviews': []
     })
 
+@app.route('/api/stores/all', methods=['GET'])
+def api_all_places():
+    """Get all places regardless of category"""
+    recs = Recommendation.query.all()
+    return jsonify([
+        {
+            'id': r.id,
+            'name': r.title,
+            'location': r.location,
+            'category': r.category,
+            'description': r.description,
+            'hours': r.hours,
+            'image_url': r.image_url,
+            'avg_rating': r.avg_rating,
+            'contact': r.contact
+        }
+        for r in recs
+    ])
+
 @app.route('/api/categories', methods=['GET'])
 def api_categories():
     return jsonify([
@@ -252,11 +283,36 @@ def api_sub_categories():
     ])
 
 # =========================================
-# RECOMMENDATION API ROUTES (CREATE/UPDATE/DELETE)
+# RECOMMENDATION API ROUTES
 # =========================================
 
+@app.route('/api/recommendations', methods=['GET'])
+def api_get_recommendations():
+    """Public endpoint to get all recommendations (for home page)"""
+    recs = Recommendation.query.all()
+    return jsonify([
+        {
+            'id': r.id,
+            'title': r.title,
+            'name': r.title,
+            'reason': r.reason,
+            'location': r.location,
+            'category': r.category,
+            'description': r.description,
+            'hours': r.hours,
+            'contact': r.contact,
+            'image_url': r.image_url,
+            'avg_rating': r.avg_rating,
+            'user_id': r.user_id,
+            'author': r.author.username if r.author else 'Unknown'
+        }
+        for r in recs
+    ])
+
 @app.route('/api/recommendations', methods=['POST'])
+@jwt_required()
 def api_add_recommendation():
+    user_id = get_jwt_identity()
     name = request.form.get('name')
     location = request.form.get('location')
     category = request.form.get('category')
@@ -272,7 +328,6 @@ def api_add_recommendation():
     if files and files[0]:
         file = files[0]
         if file and allowed_file(file.filename):
-            # Convert image to Base64
             file_data = file.read()
             base64_string = base64.b64encode(file_data).decode('utf-8')
             ext = file.filename.rsplit('.', 1)[1].lower()
@@ -297,7 +352,7 @@ def api_add_recommendation():
         contact=contact,
         image_url=image_url,
         avg_rating=5,
-        user_id=current_user.id if current_user.is_authenticated else 1
+        user_id=user_id
     )
 
     db.session.add(rec)
@@ -311,12 +366,10 @@ def api_edit_recommendation(id):
     user_id = get_jwt_identity()
     rec = Recommendation.query.get_or_404(id)
     
-    # Check if user owns this recommendation or is admin
     user = User.query.get(int(user_id))
     if rec.user_id != user.id and user.role != 'admin':
         return jsonify({'error': 'Not authorized'}), 403
     
-    # Update fields
     rec.title = request.form.get('name', rec.title)
     rec.location = request.form.get('location', rec.location)
     rec.category = request.form.get('category', rec.category)
@@ -329,7 +382,6 @@ def api_edit_recommendation(id):
     if sub_category_id:
         rec.sub_category_id = sub_category_id
     
-    # Handle new image if uploaded
     files = request.files.getlist('images')
     if files and files[0]:
         file = files[0]
@@ -377,7 +429,6 @@ def api_create_report():
     if not store_id or not reason:
         return jsonify({'error': 'Store ID and reason are required'}), 400
     
-    # Check if already reported by this user
     existing = Report.query.filter_by(store_id=store_id, reporter_id=user_id).first()
     if existing:
         return jsonify({'error': 'You have already reported this store'}), 400
@@ -433,6 +484,19 @@ def api_resolve_report(id):
 # ADMIN API ROUTES
 # =========================================
 
+@app.route('/api/admin/stats', methods=['GET'])
+@jwt_required()
+@admin_required
+def api_admin_stats():
+    users = User.query.count()
+    recommendations = Recommendation.query.count()
+    reports = Report.query.filter_by(status='pending').count()
+    return jsonify({
+        'users': users,
+        'recommendations': recommendations,
+        'reports': reports
+    })
+
 @app.route('/api/admin/users', methods=['GET'])
 @jwt_required()
 @admin_required
@@ -447,6 +511,26 @@ def api_admin_users():
             'recommendation_count': u.recommendations.count()
         }
         for u in users
+    ])
+
+@app.route('/api/admin/stores', methods=['GET'])
+@jwt_required()
+@admin_required
+def api_admin_stores():
+    recs = Recommendation.query.all()
+    return jsonify([
+        {
+            'id': r.id,
+            'title': r.title,
+            'name': r.title,
+            'category': r.category,
+            'location': r.location,
+            'author': r.author.username if r.author else 'Unknown',
+            'user_id': r.user_id,
+            'image_url': r.image_url,
+            'avg_rating': r.avg_rating
+        }
+        for r in recs
     ])
 
 @app.route('/api/admin/users/<int:id>/promote', methods=['POST'])
