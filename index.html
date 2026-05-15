@@ -422,8 +422,10 @@
           <li class="nav-item" :class="{active: page==='attractions'}" @click="navigate('attractions')"> <span class="nav-icon">🗺</span> Attractions </li>
           <li class="nav-item" :class="{active: page==='allplaces'}"   @click="navigate('allplaces')">   <span class="nav-icon">📍</span> All Places </li>
           <li class="nav-item" :class="{active: page==='add'}"         @click="navigate('add')">         <span class="nav-icon">＋</span> Add Recommendation </li>
-          <li class="nav-item" v-if="isAdmin" :class="{active: page==='admin'}" @click="navigate('admin')">
-            <span class="nav-icon">⚙</span> Admin Panel
+          <li class="nav-item" v-if="isAdmin">
+            <a href="/admin" style="display:flex;align-items:center;gap:10px;color:inherit;width:100%;text-decoration:none;">
+              <span class="nav-icon">⚙</span> Admin Panel
+            </a>
           </li>
         </ul>
         <div class="sidebar-footer">
@@ -658,72 +660,7 @@
               </div>
             </div>
 
-            <!-- ADMIN PANEL -->
-            <div v-else-if="page==='admin'" key="admin">
-              <div class="page-heading">⚙ Admin Panel</div>
-              <div style="color:var(--muted);font-size:13px;margin-bottom:24px;">Manage all content and users</div>
-
-              <div class="admin-stats">
-                <div class="stat-card">
-                  <div class="stat-icon">👥</div>
-                  <div class="stat-value">{{ adminStats.users }}</div>
-                  <div class="stat-label">Total Users</div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-icon">🏪</div>
-                  <div class="stat-value">{{ adminStats.recommendations }}</div>
-                  <div class="stat-label">Total Recommendations</div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-icon">⚠️</div>
-                  <div class="stat-value">{{ adminStats.reports }}</div>
-                  <div class="stat-label">Pending Reports</div>
-                </div>
-              </div>
-
-              <div class="admin-section">
-                <div class="admin-section-title">👥 User Management</div>
-                <div class="data-table">
-                  <div class="data-table-header">
-                    <span>#</span><span>Username</span><span>Email</span><span>Role</span><span>Joined</span><span>Actions</span>
-                  </div>
-                  <div class="data-table-row" v-for="(u,i) in adminUsers" :key="u.id">
-                    <span>{{ i+1 }}</span>
-                    <span>{{ u.username }}</span>
-                    <span>{{ u.email || '—' }}</span>
-                    <span><span class="role-badge" :class="u.role==='admin'?'role-admin':'role-user'">{{ u.role }}</span></span>
-                    <span>{{ formatDate(u.created_at) }}</span>
-                    <span class="actions-cell">
-                      <button v-if="u.role!=='admin'" class="btn-sm btn-view" @click="promoteUser(u.id)">↑ Admin</button>
-                      <button class="btn-sm btn-delete" @click="deleteUser(u.id)">🗑 Delete</button>
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="admin-section">
-                <div class="admin-section-title">🏪 Store Management</div>
-                <div class="data-table">
-                  <div class="data-table-header">
-                    <span>#</span><span>Name</span><span>Category</span><span>Location</span><span>Added by</span><span>Actions</span>
-                  </div>
-                  <div class="data-table-row" v-for="(s,i) in adminStores" :key="s.id">
-                    <span>{{ i+1 }}</span>
-                    <span>{{ s.title || s.name }}</span>
-                    <span>{{ s.category }}</span>
-                    <span>{{ s.location }}</span>
-                    <span>{{ s.author || '—' }}</span>
-                    <span class="actions-cell">
-                      <button class="btn-sm btn-view" @click="openStore(s)">👁 View</button>
-                      <button class="btn-sm btn-edit" @click="editRec(s)">✎ Edit</button>
-                      <button class="btn-sm btn-delete" @click="deleteRec(s.id)">🗑 Delete</button>
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-          </transition>
+            </transition>
         </div>
       </div>
     </div>
@@ -781,7 +718,7 @@ const API = (() => {
   async function req(method, path, body = null) {
     const headers = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    const opts = { method, headers };
+    const opts = { method, headers, credentials: 'include' };
     if (body) opts.body = JSON.stringify(body);
     const res = await fetch(`${BASE_URL}${path}`, opts);
     if (!res.ok) {
@@ -794,7 +731,7 @@ const API = (() => {
   async function upload(path, formData) {
     const headers = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers, body: formData });
+    const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers, body: formData, credentials: 'include' });
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
       throw new Error(e.message || `HTTP ${res.status}`);
