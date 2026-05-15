@@ -17,22 +17,28 @@
 
       <ul class="nav-list">
         <li class="nav-item {% if active_page == 'home' %}active{% endif %}">
-          <a href="{{ url_for('index') }}"><span class="nav-icon">⌂</span> Home</a>
+          <a href="{{ url_for('home') }}"><span class="nav-icon">⌂</span> Home</a>
         </li>
         <li class="nav-item {% if active_page == 'restaurants' %}active{% endif %}">
           <a href="{{ url_for('restaurants') }}"><span class="nav-icon">🍽</span> Restaurants</a>
         </li>
         <li class="nav-item {% if active_page == 'cafes' %}active{% endif %}">
           <a href="{{ url_for('cafes') }}"><span class="nav-icon">☕</span> Cafes</a>
+
+        </li>
+        <li class="nav-item {% if active_page == 'shops' %}active{% endif %}">
+          <a href="{{ url_for('shops') }}"><span class="nav-icon">🛍</span> Shops</a>
+
         </li>
         <li class="nav-item {% if active_page == 'attractions' %}active{% endif %}">
-          <a href="{{ url_for('attractions') }}"><span class="nav-icon">🗺</span> Attractions</a>
+          <a href="{{ url_for('attractions') }}"><span class="nav-icon">🎡</span> Attractions</a>
         </li>
         <li class="nav-item {% if active_page == 'places' %}active{% endif %}">
-          <a href="{{ url_for('places') }}"><span class="nav-icon">📍</span> Places</a>
+          <a href="{{ url_for('places') }}"><span class="nav-icon">📍</span> All Places</a>
+
         </li>
         <li class="nav-item {% if active_page == 'add' %}active{% endif %}">
-          <a href="{{ url_for('add') }}"><span class="nav-icon">＋</span> Add Recommendation</a>
+          <a href="{{ url_for('add') }}"><span class="nav-icon">＋</span> Add Recommendation</a>     
         </li>
 
         {# Admin nav item — only visible to admin users #}
@@ -57,7 +63,7 @@
     <div class="main-area">
       <div class="topbar">
         <div class="topbar-title">{{ page_title or "Explore That's My Naga" }}</div>
-        <form class="search-box" method="GET" action="{{ search_action or '#' }}">
+        <form class="search-box" method="GET" action="{{ url_for('search') }}">
           <span class="search-icon">⌕</span>
           <input type="text" name="q" placeholder="Search places..." value="{{ q or '' }}" />
         </form>
