@@ -5,7 +5,6 @@
 
 <div class="back-row">
   <a class="btn-back" href="javascript:history.back()">← Back</a>
-
   {% if store %}
     <span class="badge">{{ store.category }}</span>
   {% endif %}
@@ -15,41 +14,55 @@
 
 <div class="detail-card">
 
-  <div class="detail-block-title">
-    {{ store.title }}
+  <!-- HERO IMAGE -->
+  <div class="detail-hero">
+    {% set hero_img = store.images[0].url if store.images else store.image_url %}
+    {% if hero_img %}
+      <img src="{{ hero_img }}" alt="{{ store.title }}" />
+    {% else %}
+      <span class="detail-hero-ph">🏪</span>
+    {% endif %}
   </div>
 
-  <div class="detail-block-text">
-    {{ store.description }}
+  <!-- ADDITIONAL IMAGES -->
+  {% if store.images and store.images|length > 1 %}
+  <div class="mini-row" style="margin-bottom: 20px;">
+    {% for img in store.images[1:5] %}
+    <div class="mini-img">
+      <img src="{{ img.url }}" alt="{{ store.title }}" />
+    </div>
+    {% endfor %}
   </div>
+  {% endif %}
+
+  <div class="detail-block-title">{{ store.title }}</div>
+  <div class="detail-block-text">{{ store.description }}</div>
 
   <div class="detail-meta">
     <span>📍 {{ store.location }}</span>
-
-    {% if store.hours %}
-      <span>🕐 {{ store.hours }}</span>
-    {% endif %}
-
-    {% if store.contact %}
-      <span>📞 {{ store.contact }}</span>
-    {% endif %}
+    {% if store.hours %}<span>🕐 {{ store.hours }}</span>{% endif %}
+    {% if store.contact %}<span>📞 {{ store.contact }}</span>{% endif %}
   </div>
 
   <div class="detail-section">
-    <div class="detail-block-title">
-      Why Recommended
-    </div>
-
-    <div class="detail-block-text">
-      {{ store.reason }}
-    </div>
+    <div class="detail-block-title">Why Recommended</div>
+    <div class="detail-block-text">{{ store.reason }}</div>
   </div>
 
-  {% if store.user_id %}
+  {% if store.user %}
   <div class="detail-section">
-    <small>
-      Added by User #{{ store.user_id }}
-    </small>
+    <small>Added by <strong>{{ store.user.username }}</strong></small>
+  </div>
+  {% endif %}
+
+  {# Edit / Delete — owner or admin only #}
+  {% if current_user.is_authenticated and (store.user_id == current_user.id or current_user.role == 'admin') %}
+  <div class="detail-actions">
+    <a href="{{ url_for('edit_rec', id=store.id) }}" class="btn-action btn-edit-sm">✏ Edit</a>
+    <form action="{{ url_for('delete_rec', id=store.id) }}" method="POST" style="display:inline;">
+      <button type="submit" class="btn-action btn-delete"
+        onclick="return confirm('Delete this recommendation?')">🗑 Delete</button>
+    </form>
   </div>
   {% endif %}
 
@@ -58,9 +71,9 @@
 {% else %}
 
 <div class="state-box">
-  <div class="state-title">
-    Store not found
-  </div>
+  <div class="state-icon">🔍</div>
+  <div class="state-title">Store not found</div>
+  <a class="btn-retry" href="{{ url_for('index') }}">Go Home</a>
 </div>
 
 {% endif %}
