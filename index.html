@@ -354,6 +354,7 @@
     .fade-enter-active, .fade-leave-active { transition: opacity .18s ease; }
     .fade-enter-from, .fade-leave-to { opacity: 0; }
   </style>
+<base target="_blank">
 </head>
 <body>
 <div id="app">
@@ -763,13 +764,19 @@
 <script>
 const API = (() => {
   const BASE_URL = 'https://wonder-naga-project.onrender.com/api';
-  let token = null;
+  let token = localStorage.getItem('token') || null;
   let user = null;
 
-  const setToken   = t  => { token = t; };
-  const setUser    = u  => { user = u; };
+  // Restore user from localStorage on init
+  const savedUser = localStorage.getItem('user');
+  if (savedUser) {
+    try { user = JSON.parse(savedUser); } catch(e) { user = null; }
+  }
+
+  const setToken   = t  => { token = t; if (t) localStorage.setItem('token', t); else localStorage.removeItem('token'); };
+  const setUser    = u  => { user = u; if (u) localStorage.setItem('user', JSON.stringify(u)); else localStorage.removeItem('user'); };
   const getUser    = () => user;
-  const clearToken = () => { token = null; user = null; };
+  const clearToken = () => { token = null; user = null; localStorage.removeItem('token'); localStorage.removeItem('user'); };
 
   async function req(method, path, body = null) {
     const headers = { 'Content-Type': 'application/json' };
@@ -849,6 +856,22 @@ createApp({
     const authForm    = ref({ name: '', username: '', password: '', confirm: '' });
     const currentUser = ref(null);
     const isAdmin     = computed(() => currentUser.value?.role === 'admin');
+
+    // ── RESTORE SESSION FROM LOCALSTORAGE ──
+    const savedToken = localStorage.getItem('token');
+    const savedUser  = localStorage.getItem('user');
+    if (savedToken && savedUser) {
+      try {
+        const parsed = JSON.parse(savedUser);
+        currentUser.value = parsed;
+        loggedIn.value = true;
+        API.setToken(savedToken);
+        API.setUser(parsed);
+      } catch(e) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
+    }
 
     function switchAuth(mode) { authMode.value = mode; authError.value = null; fe.value = {}; }
 
