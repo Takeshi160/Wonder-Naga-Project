@@ -1,6 +1,6 @@
 from flask import render_template, request, jsonify, redirect, url_for, flash, send_from_directory
 from app import app, db
-from app.models import Place, Recommendation, User
+from app.models import Place, Recommendation, User, Report, SubCategory, RecommendationImage
 from app.forms import RecommendationForm, LoginForm, RegistrationForm
 from werkzeug.utils import secure_filename
 from flask_login import login_required, login_user, logout_user, current_user
@@ -38,6 +38,16 @@ def allowed_file(filename):
         filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
     )
 
+def admin_required(f):
+    """Decorator to check if current user is admin"""
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            return jsonify({'error': 'Admin access required'}), 403
+        return f(*args, **kwargs)
+    return decorated_function
+
 # =========================================
 # AUTH API ROUTES (FOR VUE APP)
 # =========================================
@@ -51,7 +61,7 @@ def api_login():
     user = User.query.filter_by(username=username).first()
     if user and check_password_hash(user.password, password):
         token = create_access_token(identity=str(user.id))
-        return jsonify({'token': token, 'username': user.username})
+        return jsonify({'token': token, 'username': user.username, 'role': user.role})
     
     return jsonify({'error': 'Invalid credentials'}), 401
 
@@ -74,14 +84,27 @@ def api_register():
     db.session.commit()
     
     token = create_access_token(identity=str(user.id))
-    return jsonify({'token': token, 'username': user.username})
+    return jsonify({'token': token, 'username': user.username, 'role': user.role})
 
 @app.route('/api/auth/logout', methods=['POST'])
 def api_logout():
     return jsonify({'message': 'Logged out'})
 
+@app.route('/api/auth/me', methods=['GET'])
+@jwt_required()
+def api_me():
+    user_id = get_jwt_identity()
+    user = User.query.get(int(user_id))
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    return jsonify({
+        'id': user.id,
+        'username': user.username,
+        'role': user.role
+    })
+
 # =========================================
-# STORE API ROUTES (FOR VUE APP) - USING RECOMMENDATION
+# STORE API ROUTES (FOR VUE APP)
 # =========================================
 
 @app.route('/api/stores/featured', methods=['GET'])
@@ -98,7 +121,13 @@ def api_featured():
         'location': rec.location,
         'description': rec.description,
         'hours': rec.hours,
-        'avg_rating': rec.avg_rating
+        'avg_rating': rec.avg_rating,
+        'contact': rec.contact,
+        'reason': rec.reason,
+        'sub_category': {
+            'name': rec.sub_category.name,
+            'icon': rec.sub_category.icon
+        } if rec.sub_category else None
     })
 
 @app.route('/api/stores/top', methods=['GET'])
@@ -113,7 +142,14 @@ def api_top_stores():
             'description': r.description,
             'hours': r.hours,
             'image_url': r.image_url,
-            'avg_rating': r.avg_rating
+            'avg_rating': r.avg_rating,
+            'contact': r.contact,
+            'reason': r.reason,
+            'author': r.author.username if r.author else 'Unknown',
+            'sub_category': {
+                'name': r.sub_category.name,
+                'icon': r.sub_category.icon
+            } if r.sub_category else None
         }
         for r in recs
     ])
@@ -122,11 +158,15 @@ def api_top_stores():
 def api_stores():
     category = request.args.get('category', '')
     search = request.args.get('search', '')
+    sub_category = request.args.get('sub_category', '')
     
     query = Recommendation.query
     
     if category:
         query = query.filter_by(category=category)
+    
+    if sub_category:
+        query = query.filter_by(sub_category_id=sub_category)
     
     if search:
         query = query.filter(
@@ -145,7 +185,14 @@ def api_stores():
             'description': r.description,
             'hours': r.hours,
             'image_url': r.image_url,
-            'avg_rating': r.avg_rating
+            'avg_rating': r.avg_rating,
+            'contact': r.contact,
+            'reason': r.reason,
+            'author': r.author.username if r.author else 'Unknown',
+            'sub_category': {
+                'name': r.sub_category.name,
+                'icon': r.sub_category.icon
+            } if r.sub_category else None
         }
         for r in recs
     ])
@@ -165,7 +212,13 @@ def api_store_detail(id):
         'hours': rec.hours,
         'image_url': rec.image_url,
         'avg_rating': rec.avg_rating,
-        'contact': getattr(rec, 'contact', ''),
+        'contact': rec.contact,
+        'reason': rec.reason,
+        'author': rec.author.username if rec.author else 'Unknown',
+        'sub_category': {
+            'name': rec.sub_category.name,
+            'icon': rec.sub_category.icon
+        } if rec.sub_category else None,
         'gallery': images,
         'reviews': []
     })
@@ -180,6 +233,27 @@ def api_categories():
         {'value': 'other', 'label': 'Other'}
     ])
 
+@app.route('/api/sub-categories', methods=['GET'])
+def api_sub_categories():
+    category = request.args.get('category', '')
+    query = SubCategory.query
+    if category:
+        query = query.filter_by(category=category)
+    subs = query.all()
+    return jsonify([
+        {
+            'id': s.id,
+            'name': s.name,
+            'icon': s.icon,
+            'category': s.category
+        }
+        for s in subs
+    ])
+
+# =========================================
+# RECOMMENDATION API ROUTES (CREATE/UPDATE/DELETE)
+# =========================================
+
 @app.route('/api/recommendations', methods=['POST'])
 def api_add_recommendation():
     name = request.form.get('name')
@@ -189,6 +263,7 @@ def api_add_recommendation():
     hours = request.form.get('hours')
     reason = request.form.get('reason')
     contact = request.form.get('contact')
+    sub_category_id = request.form.get('sub_category_id')
 
     image_url = None
     files = request.files.getlist('images')
@@ -199,7 +274,6 @@ def api_add_recommendation():
             # Convert image to Base64
             file_data = file.read()
             base64_string = base64.b64encode(file_data).decode('utf-8')
-            # Detect MIME type from filename extension
             ext = file.filename.rsplit('.', 1)[1].lower()
             mime_types = {
                 'png': 'image/png',
@@ -216,18 +290,218 @@ def api_add_recommendation():
         reason=reason,
         location=location,
         category=category,
+        sub_category_id=sub_category_id if sub_category_id else None,
         description=description,
         hours=hours,
         contact=contact,
         image_url=image_url,
         avg_rating=5,
-        user_id=1
+        user_id=current_user.id if current_user.is_authenticated else 1
     )
 
     db.session.add(rec)
     db.session.commit()
 
-    return jsonify({'message': 'Recommendation added successfully'})
+    return jsonify({'message': 'Recommendation added successfully', 'id': rec.id})
+
+@app.route('/api/recommendations/<int:id>', methods=['PUT'])
+@jwt_required()
+def api_edit_recommendation(id):
+    user_id = get_jwt_identity()
+    rec = Recommendation.query.get_or_404(id)
+    
+    # Check if user owns this recommendation or is admin
+    user = User.query.get(int(user_id))
+    if rec.user_id != user.id and user.role != 'admin':
+        return jsonify({'error': 'Not authorized'}), 403
+    
+    # Update fields
+    rec.title = request.form.get('name', rec.title)
+    rec.location = request.form.get('location', rec.location)
+    rec.category = request.form.get('category', rec.category)
+    rec.description = request.form.get('description', rec.description)
+    rec.hours = request.form.get('hours', rec.hours)
+    rec.reason = request.form.get('reason', rec.reason)
+    rec.contact = request.form.get('contact', rec.contact)
+    
+    sub_category_id = request.form.get('sub_category_id')
+    if sub_category_id:
+        rec.sub_category_id = sub_category_id
+    
+    # Handle new image if uploaded
+    files = request.files.getlist('images')
+    if files and files[0]:
+        file = files[0]
+        if file and allowed_file(file.filename):
+            file_data = file.read()
+            base64_string = base64.b64encode(file_data).decode('utf-8')
+            ext = file.filename.rsplit('.', 1)[1].lower()
+            mime_types = {
+                'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+                'gif': 'image/gif', 'webp': 'image/webp'
+            }
+            mime = mime_types.get(ext, 'image/jpeg')
+            rec.image_url = f"data:{mime};base64,{base64_string}"
+    
+    db.session.commit()
+    return jsonify({'message': 'Recommendation updated successfully'})
+
+@app.route('/api/recommendations/<int:id>', methods=['DELETE'])
+@jwt_required()
+def api_delete_recommendation(id):
+    user_id = get_jwt_identity()
+    rec = Recommendation.query.get_or_404(id)
+    
+    user = User.query.get(int(user_id))
+    if rec.user_id != user.id and user.role != 'admin':
+        return jsonify({'error': 'Not authorized'}), 403
+    
+    db.session.delete(rec)
+    db.session.commit()
+    return jsonify({'message': 'Recommendation deleted successfully'})
+
+# =========================================
+# REPORT API ROUTES
+# =========================================
+
+@app.route('/api/reports', methods=['POST'])
+@jwt_required()
+def api_create_report():
+    user_id = get_jwt_identity()
+    data = request.get_json()
+    
+    store_id = data.get('store_id')
+    reason = data.get('reason')
+    
+    if not store_id or not reason:
+        return jsonify({'error': 'Store ID and reason are required'}), 400
+    
+    # Check if already reported by this user
+    existing = Report.query.filter_by(store_id=store_id, reporter_id=user_id).first()
+    if existing:
+        return jsonify({'error': 'You have already reported this store'}), 400
+    
+    report = Report(
+        store_id=store_id,
+        reporter_id=user_id,
+        reason=reason,
+        status='pending'
+    )
+    db.session.add(report)
+    db.session.commit()
+    
+    return jsonify({'message': 'Report submitted successfully'})
+
+@app.route('/api/reports', methods=['GET'])
+@jwt_required()
+@admin_required
+def api_get_reports():
+    reports = Report.query.filter_by(status='pending').all()
+    return jsonify([
+        {
+            'id': r.id,
+            'store_id': r.store_id,
+            'store_name': r.reported_rec.title if r.reported_rec else 'Unknown',
+            'reporter': r.reporter.username if r.reporter else 'Unknown',
+            'reason': r.reason,
+            'status': r.status,
+            'created_at': r.created_at.isoformat() if r.created_at else None
+        }
+        for r in reports
+    ])
+
+@app.route('/api/reports/<int:id>/dismiss', methods=['POST'])
+@jwt_required()
+@admin_required
+def api_dismiss_report(id):
+    report = Report.query.get_or_404(id)
+    report.status = 'dismissed'
+    db.session.commit()
+    return jsonify({'message': 'Report dismissed'})
+
+@app.route('/api/reports/<int:id>/resolve', methods=['POST'])
+@jwt_required()
+@admin_required
+def api_resolve_report(id):
+    report = Report.query.get_or_404(id)
+    report.status = 'resolved'
+    db.session.commit()
+    return jsonify({'message': 'Report resolved'})
+
+# =========================================
+# ADMIN API ROUTES
+# =========================================
+
+@app.route('/api/admin/users', methods=['GET'])
+@jwt_required()
+@admin_required
+def api_admin_users():
+    users = User.query.all()
+    return jsonify([
+        {
+            'id': u.id,
+            'username': u.username,
+            'role': u.role,
+            'created_at': u.created_at.isoformat() if u.created_at else None,
+            'recommendation_count': u.recommendations.count()
+        }
+        for u in users
+    ])
+
+@app.route('/api/admin/users/<int:id>/promote', methods=['POST'])
+@jwt_required()
+@admin_required
+def api_promote_user(id):
+    user = User.query.get_or_404(id)
+    user.role = 'admin'
+    db.session.commit()
+    return jsonify({'message': f'User {user.username} promoted to admin'})
+
+@app.route('/api/admin/users/<int:id>/demote', methods=['POST'])
+@jwt_required()
+@admin_required
+def api_demote_user(id):
+    user = User.query.get_or_404(id)
+    user.role = 'user'
+    db.session.commit()
+    return jsonify({'message': f'User {user.username} demoted to user'})
+
+@app.route('/api/admin/users/<int:id>', methods=['DELETE'])
+@jwt_required()
+@admin_required
+def api_delete_user(id):
+    user = User.query.get_or_404(id)
+    if user.id == get_jwt_identity():
+        return jsonify({'error': 'Cannot delete yourself'}), 400
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify({'message': f'User {user.username} deleted'})
+
+@app.route('/api/admin/sub-categories', methods=['POST'])
+@jwt_required()
+@admin_required
+def api_add_sub_category():
+    data = request.get_json()
+    name = data.get('name')
+    icon = data.get('icon', '📌')
+    category = data.get('category')
+    
+    if not name or not category:
+        return jsonify({'error': 'Name and category are required'}), 400
+    
+    sub = SubCategory(name=name, icon=icon, category=category)
+    db.session.add(sub)
+    db.session.commit()
+    return jsonify({'message': 'Sub-category added', 'id': sub.id})
+
+@app.route('/api/admin/sub-categories/<int:id>', methods=['DELETE'])
+@jwt_required()
+@admin_required
+def api_delete_sub_category(id):
+    sub = SubCategory.query.get_or_404(id)
+    db.session.delete(sub)
+    db.session.commit()
+    return jsonify({'message': 'Sub-category deleted'})
 
 # =========================================
 # MAIN ROUTE - SERVE VUE APP
@@ -307,11 +581,15 @@ def add():
         if files and files[0]:
             file = files[0]
             if allowed_file(file.filename):
-                filename = secure_filename(file.filename)
-                unique_name = f"{uuid.uuid4()}_{filename}"
-                save_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_name)
-                file.save(save_path)
-                image_url = f"/static/uploads/{unique_name}"
+                file_data = file.read()
+                base64_string = base64.b64encode(file_data).decode('utf-8')
+                ext = file.filename.rsplit('.', 1)[1].lower()
+                mime_types = {
+                    'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+                    'gif': 'image/gif', 'webp': 'image/webp'
+                }
+                mime = mime_types.get(ext, 'image/jpeg')
+                image_url = f"data:{mime};base64,{base64_string}"
         
         rec = Recommendation(
             title=form.name.data,
@@ -417,29 +695,4 @@ def filter_places():
     query = Place.query
     category = request.args.get('category')
     location = request.args.get('location')
-    sort = request.args.get('sort')
-
-    if category:
-        query = query.filter_by(category=category)
-    if location:
-        query = query.filter(Place.location.ilike(f"%{location}%"))
-    if sort == 'az':
-        query = query.order_by(Place.name.asc())
-    elif sort == 'za':
-        query = query.order_by(Place.name.desc())
-    elif sort == 'rating':
-        query = query.order_by(Place.avg_rating.desc())
-
-    return jsonify([
-        {
-            'id': p.id,
-            'name': p.name,
-            'location': p.location,
-            'category': p.category,
-            'description': p.description,
-            'hours': p.hours,
-            'image_url': p.image_url,
-            'avg_rating': p.avg_rating
-        }
-        for p in query.all()
-    ])
+    sort = request.args.get('
