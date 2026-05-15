@@ -324,17 +324,25 @@ a { color: inherit; text-decoration: none; }
 /* Image upload */
 .upload-box {
   border: 1.5px dashed var(--border); border-radius: 10px;
-  min-height: 120px; display: flex; flex-direction: column;
+  display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   gap: 8px; cursor: pointer; transition: border-color .2s;
-  padding: 20px; position: relative; text-align: center;
+  padding: 20px; position: relative; text-align: center; overflow: hidden;
 }
 .upload-box:hover { border-color: var(--accent); }
 .upload-placeholder { display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
 .upload-icon { font-size: 30px; }
-.preview-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-start; width: 100%; }
-.preview-item { width: 86px; height: 86px; border-radius: 8px; overflow: hidden; border: 2px solid var(--border); flex-shrink: 0; }
-.preview-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.preview-row { width: 100%; }
+.preview-item {
+  width: 100%; height: auto;          /* ← natural height, no fixed size */
+  border-radius: 8px; overflow: hidden; border: none;
+}
+.preview-item img {
+  width: 100%; height: auto;          /* ← lets the image define its own height */
+  object-fit: contain;                /* ← show the full image, no cropping */
+  display: block;
+}
 .upload-hint { margin-top: 10px; font-size: 12px; color: var(--muted); }
 
 /* ── PLACES TABS ── */
