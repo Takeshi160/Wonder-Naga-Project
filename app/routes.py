@@ -1,4 +1,4 @@
-from flask import render_template, request, jsonify, redirect, url_for, flash
+from flask import render_template, request, jsonify, redirect, url_for, flash, send_from_directory
 from app import app, db
 from app.models import Place, Recommendation, User
 from app.forms import RecommendationForm, LoginForm, RegistrationForm
@@ -153,7 +153,6 @@ def api_stores():
 def api_store_detail(id):
     place = Place.query.get_or_404(id)
     
-    # Get images
     images = [img.url for img in place.images.all()] if hasattr(place, 'images') else []
     
     return jsonify({
@@ -167,7 +166,7 @@ def api_store_detail(id):
         'avg_rating': place.avg_rating,
         'contact': getattr(place, 'contact', ''),
         'gallery': images,
-        'reviews': []  # Add reviews later if needed
+        'reviews': []
     })
 
 @app.route('/api/categories', methods=['GET'])
@@ -212,7 +211,7 @@ def api_add_recommendation():
         contact=contact,
         image_url=image_url,
         avg_rating=5,
-        user_id=1  # Default user for now
+        user_id=1
     )
 
     db.session.add(rec)
@@ -221,19 +220,18 @@ def api_add_recommendation():
     return jsonify({'message': 'Recommendation added successfully'})
 
 # =========================================
-# HTML PAGE ROUTES (FOR JINJA2 TEMPLATES)
+# MAIN ROUTE - SERVE VUE APP
 # =========================================
 
 @app.route('/')
 def home():
-    featured = Place.query.first()
-    top_stores = Place.query.all()
-    recommendations = Recommendation.query.all()
-    
-    return render_template('index.html', 
-                         featured=featured, 
-                         top_stores=top_stores, 
-                         recommendations=recommendations)
+    # Serve the Vue app (index.html at project root)
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return send_from_directory(project_root, 'index.html')
+
+# =========================================
+# HTML PAGE ROUTES (FOR JINJA2 TEMPLATES)
+# =========================================
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -384,23 +382,6 @@ def search():
 # =========================================
 # OLD API ROUTES (KEEP FOR BACKWARD COMPATIBILITY)
 # =========================================
-
-@app.route('/api/stores', methods=['GET'])
-def get_stores():
-    places = Place.query.all()
-    return jsonify([
-        {
-            'id': p.id,
-            'name': p.name,
-            'location': p.location,
-            'category': p.category,
-            'description': p.description,
-            'hours': p.hours,
-            'image_url': p.image_url,
-            'avg_rating': p.avg_rating
-        }
-        for p in places
-    ])
 
 @app.route('/api/delete/<int:id>', methods=['DELETE'])
 def delete_place(id):
