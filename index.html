@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Wonder Naga</title>
+  <title>That's My Naga</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.4.21/vue.global.prod.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
   <style>
@@ -299,7 +299,7 @@
   <template v-if="!loggedIn">
     <div class="auth-wrap">
       <div class="auth-card">
-        <div class="auth-logo">Wonder Naga</div>
+        <div class="auth-logo">That's My Naga</div>
         <div class="auth-title">{{ authMode === 'login' ? 'Welcome Back' : 'Create Account' }}</div>
         <div class="auth-tabs">
           <button class="auth-tab" :class="{active: authMode==='login'}"    @click="switchAuth('login')">Sign In</button>
@@ -351,7 +351,7 @@
     <div class="app-shell">
 
       <aside class="sidebar">
-        <div class="sidebar-brand">Wonder <span>Naga</span></div>
+        <div class="sidebar-brand">That's My <span>Naga</span></div>
         <ul class="nav-list">
           <li class="nav-item" :class="{active: page==='home'}"        @click="navigate('home')">        <span class="nav-icon">⌂</span> Home </li>
           <li class="nav-item" :class="{active: page==='restaurants'}" @click="navigate('restaurants')"> <span class="nav-icon">🍽</span> Restaurants </li>
@@ -720,7 +720,7 @@ createApp({
     let   searchTimer = null;
 
     const pageTitle = computed(() => ({
-      home:        'Explore Wonder Naga',
+      home:        'Explore That's My Naga',
       restaurants: 'Restaurants',
       cafes:       'Cafes',
       attractions:  'Attractions',
