@@ -1,22 +1,10 @@
 {% extends "layout.html" %}
-{% set active_page = 'add' %}
-{% set page_title = 'Add Recommendation' %}
+{% set active_page = 'edit' %}
+{% set page_title = 'Edit Recommendation' %}
 
 {% block content %}
 
-<div class="page-heading">Add Recommendation</div>
-
-{% with messages = get_flashed_messages(with_categories=true) %}
-  {% if messages %}
-    {% for category, message in messages %}
-      <div class="success-banner">{{ message }}</div>
-    {% endfor %}
-  {% endif %}
-{% endwith %}
-
-{% if error %}
-<div class="alert-error">{{ error }}</div>
-{% endif %}
+<div class="page-heading">Edit Recommendation</div>
 
 <div class="add-form">
   <form method="POST" enctype="multipart/form-data">
@@ -28,9 +16,9 @@
       <label class="upload-box" for="images" id="upload-label">
         <span class="upload-placeholder" id="upload-placeholder">
           <span class="upload-icon">🖼</span>
-          <span>Click to upload images</span>
+          <span>Click to upload new image</span>
         </span>
-        <input id="images" type="file" name="images" accept="image/*" multiple
+        <input id="images" type="file" name="images" accept="image/*"
           style="display:none;" onchange="previewImages(this)" />
         <div class="preview-row" id="preview-row"></div>
         <div class="upload-hint" id="upload-hint" style="display:none;">
@@ -38,6 +26,14 @@
         </div>
       </label>
     </div>
+
+    <!-- Current Image (shown below preview) -->
+    {% if rec.image_url %}
+    <div class="form-group full" style="margin-bottom: 20px;">
+      <div class="form-label">Current Image</div>
+      <img src="{{ rec.image_url }}" id="current-image" style="max-width: 200px; border-radius: 8px;" />
+    </div>
+    {% endif %}
 
     <!-- FORM GRID -->
     <div class="form-grid">
@@ -58,15 +54,11 @@
         {{ form.category(class="form-select") }}
       </div>
       <div class="form-group">
-    <div class="form-label">Sub-Category</div>
-    {{ form.sub_category(class="form-select") }}
-</div>
-      <div class="form-group">
         <div class="form-label">Operating Hours</div>
         {{ form.hours(class="form-input") }}
       </div>
       <div class="form-group">
-        <div class="form-label">Contact Number (optional)</div>
+        <div class="form-label">Contact Number</div>
         {{ form.contact(class="form-input") }}
       </div>
       <div class="form-group full">
@@ -76,8 +68,8 @@
     </div>
 
     <div class="form-footer">
-      <button type="reset" class="btn-cancel" onclick="resetUpload()">Clear</button>
-      {{ form.submit(class="btn-submit") }}
+      <a href="{{ url_for('home') }}" class="btn-cancel">Cancel</a>
+      {{ form.submit(class="btn-submit", value="Update Recommendation") }}
     </div>
   </form>
 </div>
@@ -88,16 +80,26 @@
     const placeholder = document.getElementById('upload-placeholder');
     const hint = document.getElementById('upload-hint');
     const countEl = document.getElementById('upload-count');
+    const currentImage = document.getElementById('current-image');
+    
     row.innerHTML = '';
+    
     if (input.files.length === 0) {
       placeholder.style.display = 'flex';
       hint.style.display = 'none';
+      // Show current image again if no new file selected
+      if (currentImage) currentImage.style.display = 'block';
       return;
     }
+    
+    // Hide current image when new one is selected
+    if (currentImage) currentImage.style.display = 'none';
+    
     placeholder.style.display = 'none';
     const n = input.files.length;
     countEl.textContent = n + ' image' + (n > 1 ? 's' : '') + ' selected';
     hint.style.display = 'block';
+    
     Array.from(input.files).forEach(file => {
       const reader = new FileReader();
       reader.onload = e => {
@@ -108,12 +110,6 @@
       };
       reader.readAsDataURL(file);
     });
-  }
-
-  function resetUpload() {
-    document.getElementById('preview-row').innerHTML = '';
-    document.getElementById('upload-placeholder').style.display = 'flex';
-    document.getElementById('upload-hint').style.display = 'none';
   }
 </script>
 

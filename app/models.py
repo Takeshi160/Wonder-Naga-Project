@@ -61,8 +61,8 @@ class PlaceImage(db.Model):
 
 class Recommendation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(100), nullable=False)  # Store name
-    reason = db.Column(db.Text)  # Why they recommend it
+    title = db.Column(db.String(100), nullable=False)
+    reason = db.Column(db.Text)
     location = db.Column(db.String(200), nullable=False)
     category = db.Column(db.String(50), nullable=False)
     description = db.Column(db.Text, nullable=False)
@@ -73,7 +73,10 @@ class Recommendation(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
-    # Images relationship
+    # NEW: Sub-category
+    sub_category_id = db.Column(db.Integer, db.ForeignKey('sub_category.id'))
+    sub_category = db.relationship('SubCategory', backref='recommendations')
+    
     images = db.relationship('RecommendationImage', backref='recommendation', lazy='dynamic', cascade='all, delete-orphan')
 
     def __repr__(self):
@@ -84,4 +87,21 @@ class RecommendationImage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     recommendation_id = db.Column(db.Integer, db.ForeignKey('recommendation.id'), nullable=False)
     url = db.Column(db.String(300), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Report(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    reporter_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    store_id = db.Column(db.Integer, db.ForeignKey('recommendation.id'), nullable=False)
+    reason = db.Column(db.String(200), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    reporter = db.relationship('User', backref='reports', lazy=True)
+    store = db.relationship('Recommendation', backref='reports', lazy=True)
+
+class SubCategory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False)
+    icon = db.Column(db.String(10), nullable=False)  # emoji like 🍕
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

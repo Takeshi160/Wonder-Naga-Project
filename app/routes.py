@@ -1,6 +1,6 @@
 from flask import render_template, request, jsonify, redirect, url_for
 from app import app, db
-from app.models import Place, Recommendation
+from app.models import Place, Recommendation, User, Report, SubCategory
 from app.forms import RecommendationForm
 from werkzeug.utils import secure_filename
 from flask_login import login_required, login_user, logout_user, current_user
@@ -58,14 +58,48 @@ def home():
                          recommendations=recommendations)
 
 
-@app.route('/admin')
-def admin():
-    return render_template('admin.html')
-
 # =========================================
 # API ROUTES
 # =========================================
 
+
+from app.forms import LoginForm, RegistrationForm
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('home'))
+    
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(username=form.username.data).first()
+        if user is None or not check_password_hash(user.password, form.password.data):
+            return render_template('auth.html', mode='login', form=form, error='Invalid username or password')
+        
+        login_user(user, remember=form.remember_me.data)
+        next_page = request.args.get('next')
+        return redirect(next_page) if next_page else redirect(url_for('home'))
+    
+    return render_template('auth.html', mode='login', form=form)
+
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('home'))
+    
+    form = RegistrationForm()
+    if form.validate_on_submit():
+        user = User(
+            username=form.username.data,
+            email=form.email.data,
+            password=generate_password_hash(form.password.data)
+        )
+        db.session.add(user)
+        db.session.commit()
+        return redirect(url_for('login'))
+    
+    return render_template('auth.html', mode='register', form=form)
 
 @app.route('/logout')
 @login_required
@@ -104,8 +138,11 @@ def store_detail(id):
 @app.route('/add', methods=['GET', 'POST'])
 def add():
     form = RecommendationForm()
+    
+    # Populate sub-category choices based on main category
+    form.sub_category.choices = [(str(s.id), f"{s.icon} {s.name}") for s in SubCategory.query.all()]
+    
     if form.validate_on_submit():
-        # Handle image upload
         image_url = None
         files = request.files.getlist('images')
         
@@ -118,18 +155,18 @@ def add():
                 file.save(save_path)
                 image_url = f"/static/uploads/{unique_name}"
         
-        # Create Recommendation (not Place!)
         rec = Recommendation(
-            title=form.name.data,  # form has 'name', model has 'title'
+            title=form.name.data,
             reason=form.reason.data,
             location=form.location.data,
             category=form.category.data,
+            sub_category_id=int(form.sub_category.data) if form.sub_category.data else None,
             description=form.description.data,
             hours=form.hours.data,
             contact=form.contact.data,
             image_url=image_url,
             avg_rating=5,
-            user_id=current_user.id if current_user.is_authenticated else 1  # fallback to admin
+            user_id=current_user.id if current_user.is_authenticated else 1
         )
         
         db.session.add(rec)
@@ -194,6 +231,19 @@ def delete_place(id):
 
     return jsonify({'message': 'Place deleted'})
 
+@app.route('/delete_rec/<int:id>', methods=['POST'])
+@login_required
+def delete_rec(id):
+    rec = Recommendation.query.get_or_404(id)
+    
+    # Only allow owner or admin to delete
+    if rec.user_id != current_user.id and current_user.role != 'admin':
+        return redirect(url_for('home'))
+    
+    db.session.delete(rec)
+    db.session.commit()
+    
+    return redirect(url_for('home'))
 
 # =========================================
 # FEATURED PLACE
@@ -316,3 +366,188 @@ def search():
                          q=q, 
                          category=category,
                          category_name=category.capitalize() if category else 'All')
+
+@app.route('/admin')
+@login_required
+def admin():
+    if current_user.role != 'admin':
+        return redirect(url_for('home'))
+    
+    users = User.query.all()
+    all_stores = Recommendation.query.all()
+    total_users = User.query.count()
+    total_stores = Recommendation.query.count()
+    pending_reports = Report.query.all()
+    dynamic_subcats = SubCategory.query.all()
+    
+    return render_template('admin.html', 
+                         users=users, 
+                         all_stores=all_stores,
+                         total_users=total_users,
+                         total_stores=total_stores,
+                         pending_reports=pending_reports,
+                         dynamic_subcats=dynamic_subcats)
+
+@app.route('/admin/promote/<int:user_id>', methods=['POST'])
+@login_required
+def admin_promote(user_id):
+    if current_user.role != 'admin':
+        return redirect(url_for('home'))
+    
+    user = User.query.get_or_404(user_id)
+    user.role = 'admin'
+    db.session.commit()
+    
+    return redirect(url_for('admin'))
+
+
+@app.route('/admin/demote/<int:user_id>', methods=['POST'])
+@login_required
+def admin_demote(user_id):
+    if current_user.role != 'admin':
+        return redirect(url_for('home'))
+    
+    user = User.query.get_or_404(user_id)
+    user.role = 'user'
+    db.session.commit()
+    
+    return redirect(url_for('admin'))
+
+@app.route('/admin/delete_user/<int:user_id>', methods=['POST'])
+@login_required
+def admin_delete_user(user_id):
+    if current_user.role != 'admin':
+        return redirect(url_for('home'))
+    
+    # Don't let admin delete themselves
+    if user_id == current_user.id:
+        return redirect(url_for('admin'))
+    
+    user = User.query.get_or_404(user_id)
+    
+    # Delete all their recommendations first (or reassign them)
+    Recommendation.query.filter_by(user_id=user.id).delete()
+    
+    db.session.delete(user)
+    db.session.commit()
+    
+    return redirect(url_for('admin'))
+
+@app.route('/edit_rec/<int:id>', methods=['GET', 'POST'])
+@login_required
+def edit_rec(id):
+    rec = Recommendation.query.get_or_404(id)
+    
+    # Only owner or admin can edit
+    if rec.user_id != current_user.id and current_user.role != 'admin':
+        return redirect(url_for('home'))
+    
+    form = RecommendationForm()
+    
+    if form.validate_on_submit():
+        # Handle new image upload (optional)
+        image_url = rec.image_url  # keep existing by default
+        files = request.files.getlist('images')
+        
+        if files and files[0]:
+            file = files[0]
+            if allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                unique_name = f"{uuid.uuid4()}_{filename}"
+                save_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_name)
+                file.save(save_path)
+                image_url = f"/static/uploads/{unique_name}"
+        
+        # Update fields
+        rec.title = form.name.data
+        rec.reason = form.reason.data
+        rec.location = form.location.data
+        rec.category = form.category.data
+        rec.description = form.description.data
+        rec.hours = form.hours.data
+        rec.contact = form.contact.data
+        rec.image_url = image_url
+        
+        db.session.commit()
+        return redirect(url_for('home'))
+    
+    # Pre-fill form with existing data
+    if request.method == 'GET':
+        form.name.data = rec.title
+        form.reason.data = rec.reason
+        form.location.data = rec.location
+        form.category.data = rec.category
+        form.description.data = rec.description
+        form.hours.data = rec.hours
+        form.contact.data = rec.contact
+    
+    return render_template('edit_rec.html', form=form, rec=rec)
+
+@app.route('/admin/delete_rec/<int:id>', methods=['POST'])
+@login_required
+def admin_delete_rec(id):
+    if current_user.role != 'admin':
+        return redirect(url_for('home'))
+    
+    rec = Recommendation.query.get_or_404(id)
+    db.session.delete(rec)
+    db.session.commit()
+    
+    return redirect(url_for('admin'))
+
+@app.route('/report/<int:store_id>', methods=['POST'])
+@login_required
+def report_store(store_id):
+    reason = request.form.get('reason', 'No reason provided')
+    
+    report = Report(
+        reporter_id=current_user.id,
+        store_id=store_id,
+        reason=reason
+    )
+    
+    db.session.add(report)
+    db.session.commit()
+    
+    return redirect(url_for('home'))
+
+
+@app.route('/admin/dismiss_report/<int:report_id>', methods=['POST'])
+@login_required
+def admin_dismiss_report(report_id):
+    if current_user.role != 'admin':
+        return redirect(url_for('home'))
+    
+    report = Report.query.get_or_404(report_id)
+    db.session.delete(report)
+    db.session.commit()
+    
+    return redirect(url_for('admin'))
+
+@app.route('/admin/add_subcat', methods=['POST'])
+@login_required
+def admin_add_subcat():
+    if current_user.role != 'admin':
+        return redirect(url_for('home'))
+    
+    name = request.form.get('name')
+    icon = request.form.get('icon', '📂')
+    
+    subcat = SubCategory(name=name, icon=icon)
+    db.session.add(subcat)
+    db.session.commit()
+    
+    return redirect(url_for('admin'))
+
+
+@app.route('/admin/delete_subcat/<int:subcat_id>', methods=['POST'])
+@login_required
+def admin_delete_subcat(subcat_id):
+    if current_user.role != 'admin':
+        return redirect(url_for('home'))
+    
+    subcat = SubCategory.query.get_or_404(subcat_id)
+    db.session.delete(subcat)
+    db.session.commit()
+    
+    return redirect(url_for('admin'))

@@ -22,8 +22,12 @@
       <div class="store-info">
         <div class="store-name">{{ rec.title }}</div>
         <div class="store-desc">{{ rec.description[:100] }}{% if rec.description|length > 100 %}...{% endif %}</div>
-        <div class="store-rating">{{ rec.category }} · {{ rec.location }}</div>
-        <div class="store-extra">
+<div class="store-rating">
+    {{ rec.category }}
+    {% if rec.sub_category %}· {{ rec.sub_category.icon }} {{ rec.sub_category.name }}{% endif %}
+    · {{ rec.location }}
+    · by {{ rec.author.username if rec.author else 'Unknown' }}
+</div>        <div class="store-extra">
           <small><strong>Reason:</strong> {{ rec.reason }}</small><br>
           <small><strong>Hours:</strong> {{ rec.hours }}</small>
           {% if rec.contact %}<<br><small><strong>Contact:</strong> {{ rec.contact }}</small>{% endif %}
@@ -31,14 +35,24 @@
       </div>
     </a>
 
-    {% if current_user.is_authenticated and (rec.user_id == current_user.id or current_user.role == 'admin') %}
-    <div style="padding: 0 14px 14px; display:flex; gap:10px;">
-      <a href="#" class="btn-action btn-edit-sm">✏ Edit</a>
-      <form action="#" method="POST" style="display:inline;">
+    {# Report button - show to everyone except the owner #}
+{% if current_user.is_authenticated and rec.user_id != current_user.id %}
+<div style="padding: 0 14px 8px;">
+    <form action="{{ url_for('report_store', store_id=rec.id) }}" method="POST" style="display:inline;">
+        <button type="submit" class="btn-action btn-report" onclick="return confirm('Report this recommendation?')">🚩 Report</button>
+    </form>
+</div>
+{% endif %}
+
+{# Show edit/delete only to the owner or admin #}
+{% if current_user.is_authenticated and (rec.user_id == current_user.id or current_user.role == 'admin') %}
+<div style="padding: 0 14px 14px; display:flex; gap:10px;">
+    <a href="{{ url_for('edit_rec', id=rec.id) }}" class="btn-action btn-edit-sm">✏ Edit</a>
+    <form action="{{ url_for('delete_rec', id=rec.id) }}" method="POST" style="display:inline;">
         <button type="submit" class="btn-action btn-delete" onclick="return confirm('Delete this recommendation?')">🗑 Delete</button>
-      </form>
-    </div>
-    {% endif %}
+    </form>
+</div>
+{% endif %}
   </div>
   {% endfor %}
 </div>

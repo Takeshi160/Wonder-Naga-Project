@@ -61,6 +61,7 @@ class RecommendationForm(FlaskForm):
         ('attraction', 'Attraction'),
         ('other', 'Other')
     ])
+    sub_category = SelectField('Sub-Category', choices=[])  # populated dynamically
     hours = StringField('Operating Hours')
     contact = StringField('Contact Number')
     description = TextAreaField('Description', validators=[DataRequired()])
