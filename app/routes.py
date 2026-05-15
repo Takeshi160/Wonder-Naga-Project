@@ -9,13 +9,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import uuid
 import base64
-
-
-@app.route('/run-migration')
-def run_migration():
-    from flask_migrate import upgrade
-    upgrade()
-    return jsonify({"status": "migration complete"})
+    
 # =========================================
 # UPLOAD CONFIG
 # =========================================
@@ -701,4 +695,29 @@ def filter_places():
     query = Place.query
     category = request.args.get('category')
     location = request.args.get('location')
-    sort = request.args.get('
+    sort = request.args.get('sort')
+
+    if category:
+        query = query.filter_by(category=category)
+    if location:
+        query = query.filter(Place.location.ilike(f"%{location}%"))
+    if sort == 'az':
+        query = query.order_by(Place.name.asc())
+    elif sort == 'za':
+        query = query.order_by(Place.name.desc())
+    elif sort == 'rating':
+        query = query.order_by(Place.avg_rating.desc())
+
+    return jsonify([
+        {
+            'id': p.id,
+            'name': p.name,
+            'location': p.location,
+            'category': p.category,
+            'description': p.description,
+            'hours': p.hours,
+            'image_url': p.image_url,
+            'avg_rating': p.avg_rating
+        }
+        for p in query.all()
+    ])
