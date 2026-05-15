@@ -22,7 +22,6 @@ if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
         1
     )
 
-# If using normal postgres URL
 elif DATABASE_URL and DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace(
         "postgresql://",
@@ -31,12 +30,10 @@ elif DATABASE_URL and DATABASE_URL.startswith("postgresql://"):
     )
 
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
-
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SECRET_KEY"] = "wondernaga-secret-key"
 app.config["JWT_SECRET_KEY"] = "wondernaga-jwt-secret"
 
-# Upload folder
 app.config["UPLOAD_FOLDER"] = os.path.join(
     app.root_path,
     "static/uploads"
@@ -48,13 +45,30 @@ app.config["UPLOAD_FOLDER"] = os.path.join(
 
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
+
 login = LoginManager(app)
 jwt = JWTManager(app)
 
 CORS(app)
 
 # =========================
-# IMPORTS
+# IMPORT MODELS FIRST
 # =========================
 
-from app import routes, models
+from app import models
+
+# =========================
+# USER LOADER (FIX)
+# =========================
+
+from app.models import User  # IMPORTANT (you must have this model)
+
+@login.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+# =========================
+# ROUTES
+# =========================
+
+from app import routes
