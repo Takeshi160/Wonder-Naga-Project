@@ -1,7 +1,7 @@
 from flask import render_template, request, jsonify, redirect, url_for, flash
 from app import app, db
 from app.models import Place, Recommendation, User
-from app.forms import RecommendationForm
+from app.forms import RecommendationForm, LoginForm, RegistrationForm
 from werkzeug.utils import secure_filename
 from flask_login import login_required, login_user, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -37,7 +37,7 @@ def allowed_file(filename):
     )
 
 # =========================================
-# AUTH ROUTES (LOGIN / SIGNUP / LOGOUT)
+# AUTH ROUTES (LOGIN / REGISTER / LOGOUT)
 # =========================================
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -45,43 +45,34 @@ def login():
     if current_user.is_authenticated:
         return redirect(url_for('home'))
     
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        user = User.query.filter_by(username=username).first()
+    form = LoginForm()
+    error = None
+    
+    if form.validate_on_submit():
+        user = User.query.filter_by(username=form.username.data).first()
         
-        if user and check_password_hash(user.password_hash, password):
-            login_user(user)
+        if user and check_password_hash(user.password, form.password.data):
+            login_user(user, remember=form.remember_me.data)
             return redirect(url_for('home'))
         else:
-            flash('Invalid username or password')
+            error = 'Invalid username or password'
     
-    return render_template('login.html')
+    return render_template('auth.html', mode='login', form=form, error=error)
 
-@app.route('/signup', methods=['GET', 'POST'])
-def signup():
+@app.route('/register', methods=['GET', 'POST'])
+def register():
     if current_user.is_authenticated:
         return redirect(url_for('home'))
     
-    if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        
-        # Check if user already exists
-        if User.query.filter_by(username=username).first():
-            flash('Username already exists')
-            return render_template('signup.html')
-        
-        if User.query.filter_by(email=email).first():
-            flash('Email already exists')
-            return render_template('signup.html')
-        
-        # Create new user
+    form = RegistrationForm()
+    error = None
+    
+    if form.validate_on_submit():
+        # Create new user (email is in form but not in User model, so we skip it)
         user = User(
-            username=username,
-            email=email,
-            password_hash=generate_password_hash(password)
+            username=form.username.data,
+            password=generate_password_hash(form.password.data),
+            role='user'
         )
         db.session.add(user)
         db.session.commit()
@@ -89,7 +80,7 @@ def signup():
         login_user(user)
         return redirect(url_for('home'))
     
-    return render_template('signup.html')
+    return render_template('auth.html', mode='register', form=form, error=error)
 
 @app.route('/logout')
 def logout():
