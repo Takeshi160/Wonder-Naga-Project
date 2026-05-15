@@ -1,48 +1,152 @@
 {% extends "layout.html" %}
-{% set active_page = category + 's' %}
-{% set page_title = title %}
+{% set active_page = 'places' %}
+{% set page_title = 'Places' %}
 {% set search_action = request.path %}
 
 {% block content %}
 
-<div class="page-heading">{{ title }}</div>
+<div class="page-heading">Places in Naga</div>
 
-{% if error %}
-<div class="state-box">
-  <div class="state-icon">⚠</div>
-  <div class="state-title">Something went wrong</div>
-  <div class="state-sub">{{ error }}</div>
-  <a class="btn-retry" href="{{ request.url }}">Retry</a>
-</div>
+<!-- SUB-CATEGORY TABS
+     To add a new tab: add a .places-tab with data-tab="key" and a matching #tab-key panel below.
+     Pass the list from your Flask route. -->
+<div class="places-tabs" id="places-tabs">
+  <a class="places-tab active" data-tab="motels" href="#">🏨 Motels</a>
+  <a class="places-tab" data-tab="kinalasan" href="#">🐟 Kinalasan</a>
+  <a class="places-tab" data-tab="foodtrip" href="#">🍜 Food Trip</a>
 
-{% elif stores %}
-<div class="store-grid">
-  {% for s in stores %}
-  <a class="store-card" href="{{ url_for('store_detail', store_id=s.id) }}">
-    <div class="store-img">
-      {% if s.image_url %}
-        <img src="{{ s.image_url }}" alt="{{ s.name }}"/>
-      {% else %}
-        <span class="store-img-ph">🏪</span>
-      {% endif %}
-    </div>
-    <div class="store-info">
-      <div class="store-name">{{ s.name }}</div>
-      <div class="store-desc">{{ s.description }}</div>
-      <div class="store-rating">★ {{ s.avg_rating or '—' }} &nbsp;·&nbsp; {{ s.location }}</div>
-    </div>
-  </a>
+  {# Dynamic sub-categories added by admins #}
+  {% for subcat in dynamic_subcats %}
+  <a class="places-tab" data-tab="dyn-{{ subcat.id }}" href="#">{{ subcat.icon }} {{ subcat.name }}</a>
   {% endfor %}
 </div>
 
-{% else %}
-<div class="state-box">
-  <div class="state-icon">🔍</div>
-  <div class="state-title">Nothing here yet</div>
-  <div class="state-sub">
-    {% if q %}No results for "{{ q }}".{% else %}No entries found.{% endif %}
+<!-- MOTELS TAB -->
+<div class="tab-panel" id="tab-motels">
+  <div class="section-label">Motels</div>
+  {% if motels %}
+  <div class="store-grid">
+    {% for s in motels %}
+    <a class="store-card" href="{{ url_for('store_detail', id=s.id) }}">
+      <div class="store-img">
+        {% set img = s.images[0].url if s.images else s.image_url %}
+        {% if img %}<img src="{{ img }}" alt="{{ s.title }}" />{% else %}<span class="store-img-ph">🏨</span>{% endif %}
+      </div>
+      <div class="store-info">
+        <div class="store-name">{{ s.title }}</div>
+        <div class="store-desc">{{ s.description[:90] }}{% if s.description|length > 90 %}...{% endif %}</div>
+        <div class="store-rating">{{ s.location }}</div>
+      </div>
+    </a>
+    {% endfor %}
   </div>
+  {% else %}
+  <div class="state-box">
+    <div class="state-icon">🏨</div>
+    <div class="state-title">No Motels listed yet</div>
+    <div class="state-sub">Be the first to add one!</div>
+  </div>
+  {% endif %}
 </div>
-{% endif %}
+
+<!-- KINALASAN TAB -->
+<div class="tab-panel" id="tab-kinalasan" style="display:none;">
+  <div class="section-label">Kinalasan</div>
+  {% if kinalasan %}
+  <div class="store-grid">
+    {% for s in kinalasan %}
+    <a class="store-card" href="{{ url_for('store_detail', id=s.id) }}">
+      <div class="store-img">
+        {% set img = s.images[0].url if s.images else s.image_url %}
+        {% if img %}<img src="{{ img }}" alt="{{ s.title }}" />{% else %}<span class="store-img-ph">🐟</span>{% endif %}
+      </div>
+      <div class="store-info">
+        <div class="store-name">{{ s.title }}</div>
+        <div class="store-desc">{{ s.description[:90] }}{% if s.description|length > 90 %}...{% endif %}</div>
+        <div class="store-rating">{{ s.location }}</div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="state-box">
+    <div class="state-icon">🐟</div>
+    <div class="state-title">No Kinalasan listed yet</div>
+    <div class="state-sub">Be the first to add one!</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- FOOD TRIP TAB -->
+<div class="tab-panel" id="tab-foodtrip" style="display:none;">
+  <div class="section-label">Food Trip</div>
+  {% if foodtrip %}
+  <div class="store-grid">
+    {% for s in foodtrip %}
+    <a class="store-card" href="{{ url_for('store_detail', id=s.id) }}">
+      <div class="store-img">
+        {% set img = s.images[0].url if s.images else s.image_url %}
+        {% if img %}<img src="{{ img }}" alt="{{ s.title }}" />{% else %}<span class="store-img-ph">🍜</span>{% endif %}
+      </div>
+      <div class="store-info">
+        <div class="store-name">{{ s.title }}</div>
+        <div class="store-desc">{{ s.description[:90] }}{% if s.description|length > 90 %}...{% endif %}</div>
+        <div class="store-rating">{{ s.location }}</div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="state-box">
+    <div class="state-icon">🍜</div>
+    <div class="state-title">No Food Trip spots listed yet</div>
+    <div class="state-sub">Be the first to add one!</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- DYNAMIC SUB-CATEGORY PANELS (added by admin) -->
+{% for subcat in dynamic_subcats %}
+<div class="tab-panel" id="tab-dyn-{{ subcat.id }}" style="display:none;">
+  <div class="section-label">{{ subcat.name }}</div>
+  {% set stores = subcat.stores %}
+  {% if stores %}
+  <div class="store-grid">
+    {% for s in stores %}
+    <a class="store-card" href="{{ url_for('store_detail', id=s.id) }}">
+      <div class="store-img">
+        {% set img = s.images[0].url if s.images else s.image_url %}
+        {% if img %}<img src="{{ img }}" alt="{{ s.title }}" />{% else %}<span class="store-img-ph">{{ subcat.icon }}</span>{% endif %}
+      </div>
+      <div class="store-info">
+        <div class="store-name">{{ s.title }}</div>
+        <div class="store-desc">{{ s.description[:90] }}{% if s.description|length > 90 %}...{% endif %}</div>
+        <div class="store-rating">{{ s.location }}</div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="state-box">
+    <div class="state-icon">{{ subcat.icon }}</div>
+    <div class="state-title">No {{ subcat.name }} listed yet</div>
+    <div class="state-sub">Be the first to add one!</div>
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
+
+<script>
+  document.querySelectorAll('.places-tab').forEach(function(tab) {
+    tab.addEventListener('click', function(e) {
+      e.preventDefault();
+      document.querySelectorAll('.places-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+      tab.classList.add('active');
+      var panel = document.getElementById('tab-' + tab.getAttribute('data-tab'));
+      if (panel) panel.style.display = 'block';
+    });
+  });
+</script>
 
 {% endblock %}
