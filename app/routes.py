@@ -80,41 +80,41 @@ def api_logout():
     return jsonify({'message': 'Logged out'})
 
 # =========================================
-# STORE API ROUTES (FOR VUE APP)
+# STORE API ROUTES (FOR VUE APP) - USING RECOMMENDATION
 # =========================================
 
 @app.route('/api/stores/featured', methods=['GET'])
 def api_featured():
-    place = Place.query.first()
-    if not place:
+    rec = Recommendation.query.first()
+    if not rec:
         return jsonify({})
     
     return jsonify({
-        'id': place.id,
-        'name': place.name,
-        'image_url': place.image_url,
-        'category': place.category,
-        'location': place.location,
-        'description': place.description,
-        'hours': place.hours,
-        'avg_rating': place.avg_rating
+        'id': rec.id,
+        'name': rec.title,
+        'image_url': rec.image_url,
+        'category': rec.category,
+        'location': rec.location,
+        'description': rec.description,
+        'hours': rec.hours,
+        'avg_rating': rec.avg_rating
     })
 
 @app.route('/api/stores/top', methods=['GET'])
 def api_top_stores():
-    places = Place.query.all()
+    recs = Recommendation.query.all()
     return jsonify([
         {
-            'id': p.id,
-            'name': p.name,
-            'location': p.location,
-            'category': p.category,
-            'description': p.description,
-            'hours': p.hours,
-            'image_url': p.image_url,
-            'avg_rating': p.avg_rating
+            'id': r.id,
+            'name': r.title,
+            'location': r.location,
+            'category': r.category,
+            'description': r.description,
+            'hours': r.hours,
+            'image_url': r.image_url,
+            'avg_rating': r.avg_rating
         }
-        for p in places
+        for r in recs
     ])
 
 @app.route('/api/stores', methods=['GET'])
@@ -122,49 +122,49 @@ def api_stores():
     category = request.args.get('category', '')
     search = request.args.get('search', '')
     
-    query = Place.query
+    query = Recommendation.query
     
     if category:
         query = query.filter_by(category=category)
     
     if search:
         query = query.filter(
-            Place.name.ilike(f"%{search}%") | 
-            Place.description.ilike(f"%{search}%") |
-            Place.location.ilike(f"%{search}%")
+            Recommendation.title.ilike(f"%{search}%") | 
+            Recommendation.description.ilike(f"%{search}%") |
+            Recommendation.location.ilike(f"%{search}%")
         )
     
-    places = query.all()
+    recs = query.all()
     return jsonify([
         {
-            'id': p.id,
-            'name': p.name,
-            'location': p.location,
-            'category': p.category,
-            'description': p.description,
-            'hours': p.hours,
-            'image_url': p.image_url,
-            'avg_rating': p.avg_rating
+            'id': r.id,
+            'name': r.title,
+            'location': r.location,
+            'category': r.category,
+            'description': r.description,
+            'hours': r.hours,
+            'image_url': r.image_url,
+            'avg_rating': r.avg_rating
         }
-        for p in places
+        for r in recs
     ])
 
 @app.route('/api/stores/<int:id>', methods=['GET'])
 def api_store_detail(id):
-    place = Place.query.get_or_404(id)
+    rec = Recommendation.query.get_or_404(id)
     
-    images = [img.url for img in place.images.all()] if hasattr(place, 'images') else []
+    images = [img.url for img in rec.images.all()] if hasattr(rec, 'images') else []
     
     return jsonify({
-        'id': place.id,
-        'name': place.name,
-        'location': place.location,
-        'category': place.category,
-        'description': place.description,
-        'hours': place.hours,
-        'image_url': place.image_url,
-        'avg_rating': place.avg_rating,
-        'contact': getattr(place, 'contact', ''),
+        'id': rec.id,
+        'name': rec.title,
+        'location': rec.location,
+        'category': rec.category,
+        'description': rec.description,
+        'hours': rec.hours,
+        'image_url': rec.image_url,
+        'avg_rating': rec.avg_rating,
+        'contact': getattr(rec, 'contact', ''),
         'gallery': images,
         'reviews': []
     })
@@ -225,7 +225,6 @@ def api_add_recommendation():
 
 @app.route('/')
 def home():
-    # Serve the Vue app (index.html at project root)
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     return send_from_directory(project_root, 'index.html')
 
