@@ -12,24 +12,22 @@ app = Flask(__name__)
 # CONFIG
 # =========================
 
+basedir = os.path.abspath(os.path.dirname(__file__))
+
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
-# Fix Render PostgreSQL URL
-if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace(
-        "postgres://",
-        "postgresql+psycopg://",
-        1
-    )
+if DATABASE_URL:
+    # Fix Render PostgreSQL URL
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
+    elif DATABASE_URL.startswith("postgresql://"):
+        DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
+    
+    app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+else:
+    # Local development: SQLite in project folder
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'site.db')
 
-elif DATABASE_URL and DATABASE_URL.startswith("postgresql://"):
-    DATABASE_URL = DATABASE_URL.replace(
-        "postgresql://",
-        "postgresql+psycopg://",
-        1
-    )
-
-app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SECRET_KEY"] = "wondernaga-secret-key"
 app.config["JWT_SECRET_KEY"] = "wondernaga-jwt-secret"
@@ -61,7 +59,7 @@ from app import models
 # USER LOADER (FIX)
 # =========================
 
-from app.models import User  # IMPORTANT (you must have this model)
+from app.models import User
 
 @login.user_loader
 def load_user(user_id):
