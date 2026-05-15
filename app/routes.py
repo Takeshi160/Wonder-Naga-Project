@@ -8,6 +8,7 @@ from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identi
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import uuid
+import base64
     
 # =========================================
 # UPLOAD CONFIG
@@ -195,11 +196,20 @@ def api_add_recommendation():
     if files and files[0]:
         file = files[0]
         if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            unique_name = f"{uuid.uuid4()}_{filename}"
-            save_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_name)
-            file.save(save_path)
-            image_url = f"/static/uploads/{unique_name}"
+            # Convert image to Base64
+            file_data = file.read()
+            base64_string = base64.b64encode(file_data).decode('utf-8')
+            # Detect MIME type from filename extension
+            ext = file.filename.rsplit('.', 1)[1].lower()
+            mime_types = {
+                'png': 'image/png',
+                'jpg': 'image/jpeg',
+                'jpeg': 'image/jpeg',
+                'gif': 'image/gif',
+                'webp': 'image/webp'
+            }
+            mime = mime_types.get(ext, 'image/jpeg')
+            image_url = f"data:{mime};base64,{base64_string}"
 
     rec = Recommendation(
         title=name,
