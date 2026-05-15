@@ -7,14 +7,6 @@ from flask_login import login_required, login_user, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import uuid
-
-from flask import jsonify
-from flask_migrate import upgrade
-
-@app.route('/run-migrations')
-def run_migrations():
-    upgrade()
-    return jsonify({"status": "migrations complete"})
     
 # =========================================
 # UPLOAD CONFIG
