@@ -10,11 +10,7 @@ import os
 import uuid
 import base64
 
-@app.route('/run-migration')
-def run_migration():
-    from flask_migrate import upgrade
-    upgrade()
-    return jsonify({"status": "migration complete"})
+
 # =========================================
 # UPLOAD CONFIG
 # =========================================
