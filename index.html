@@ -672,7 +672,7 @@
           <li class="nav-item" :class="{active: page==='favorites'}"   @click="navigate('favorites')">   <span class="nav-icon">♥</span> My Favorites </li>
           <li class="nav-item" :class="{active: page==='add'}"         @click="navigate('add')">         <span class="nav-icon">＋</span> Add Recommendation </li>
           <li class="nav-item" v-if="isAdmin">
-            <a href="/admin" style="display:flex;align-items:center;gap:10px;color:inherit;width:100%;text-decoration:none;">
+            <a href="/admin" target="_blank" style="display:flex;align-items:center;gap:10px;color:inherit;width:100%;text-decoration:none;">
               <span class="nav-icon">⚙</span> Admin Panel
             </a>
           </li>
@@ -2077,6 +2077,15 @@ createApp({
       if (loggedIn.value) {
         fetchNotifications();
         fetchFavorites();
+      }
+      // Check for store ID in URL query params (from admin panel links)
+      const urlParams = new URLSearchParams(window.location.search);
+      const storeId = urlParams.get('store');
+      if (storeId) {
+        // Open the store detail page
+        openStore({ id: parseInt(storeId) });
+        // Clean up URL
+        window.history.replaceState({}, document.title, window.location.pathname);
       }
     });
 
