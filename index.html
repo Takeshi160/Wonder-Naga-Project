@@ -684,6 +684,12 @@
           </template>
         </div>
 
+        <!-- Remember Me checkbox (login only) -->
+        <div v-if="authMode==='login'" style="display:flex; align-items:center; gap:8px; margin-bottom:18px; margin-top:4px;">
+          <input type="checkbox" id="remember" v-model="authForm.remember_me" style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent);"/>
+          <label for="remember" style="font-size:13px;color:var(--muted);cursor:pointer;">Remember me (stay signed in)</label>
+        </div>
+
         <template v-if="authMode==='register'">
           <div class="field-label">Confirm Password</div>
           <input class="field-input" :class="{err: fe.confirm}" type="password" placeholder="Confirm password" v-model="authForm.confirm"/>
@@ -1346,9 +1352,6 @@ const API = (() => {
     if (token) headers['Authorization'] = `Bearer ${token}`;
     const opts = { method, headers, credentials: 'include' };
     if (body) opts.body = JSON.stringify(body);
-
-    console.log(`[API] ${method} ${BASE_URL}${path}`);
-
     const res = await fetch(`${BASE_URL}${path}`, opts);
     if (!res.ok) {
       const text = await res.text();
@@ -1357,7 +1360,7 @@ const API = (() => {
         const e = JSON.parse(text);
         msg = e.error || e.message || msg;
       } catch {}
-      console.error(`[API ERROR] ${method} ${path}:`, res.status, msg);
+      console.error(`API ${method} ${path} failed:`, res.status, text);
       throw new Error(msg);
     }
     return res.json();
@@ -1366,13 +1369,12 @@ const API = (() => {
   async function upload(path, formData) {
     const headers = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    console.log(`[API UPLOAD] POST ${BASE_URL}${path}`);
     const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers, body: formData, credentials: 'include' });
     if (!res.ok) {
       const text = await res.text();
       let msg = `HTTP ${res.status}`;
       try { const e = JSON.parse(text); msg = e.error || e.message || msg; } catch {}
-      console.error(`[API ERROR] POST ${path}:`, res.status, msg);
+      console.error(`API POST ${path} failed:`, res.status, text);
       throw new Error(msg);
     }
     return res.json();
@@ -1381,13 +1383,12 @@ const API = (() => {
   async function uploadPut(path, formData) {
     const headers = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    console.log(`[API UPLOAD] PUT ${BASE_URL}${path}`);
     const res = await fetch(`${BASE_URL}${path}`, { method: 'PUT', headers, body: formData, credentials: 'include' });
     if (!res.ok) {
       const text = await res.text();
       let msg = `HTTP ${res.status}`;
       try { const e = JSON.parse(text); msg = e.error || e.message || msg; } catch {}
-      console.error(`[API ERROR] PUT ${path}:`, res.status, msg);
+      console.error(`API PUT ${path} failed:`, res.status, text);
       throw new Error(msg);
     }
     return res.json();
@@ -1477,7 +1478,7 @@ createApp({
     const authLoading = ref(false);
     const authError   = ref(null);
     const fe          = ref({});
-    const authForm    = ref({ name: '', username: '', password: '', confirm: '' });
+    const authForm    = ref({ name: '', username: '', password: '', confirm: '', remember_me: false });
     const currentUser = ref(null);
     const isAdmin     = computed(() => currentUser.value?.role === 'admin');
 
@@ -1526,7 +1527,11 @@ createApp({
       if (!validateAuth()) return;
       authLoading.value = true;
       try {
-        const payload = { username: authForm.value.username, password: authForm.value.password };
+        const payload = { 
+          username: authForm.value.username, 
+          password: authForm.value.password,
+          remember_me: authForm.value.remember_me  // NEW: send Remember Me choice
+        };
         if (authMode.value === 'register') payload.name = authForm.value.name;
         const data = await (authMode.value === 'login' ? API.login(payload) : API.register(payload));
         API.setToken(data.token);
@@ -2029,18 +2034,13 @@ createApp({
       loadingFavorites.value = true; errorFavorites.value = null;
       try {
         const data = await API.getFavorites();
-        // Ensure we always have an array (backend might return object or null)
-        const arr = Array.isArray(data) ? data : (data && Array.isArray(data.favorites) ? data.favorites : []);
-        favorites.value = arr;
-        allFavorites.value = [...arr];
-        favoriteIds.value = new Set(arr.map(f => f.id).filter(Boolean));
+        favorites.value = data || [];
+        allFavorites.value = [...favorites.value];
+        favoriteIds.value = new Set(favorites.value.map(f => f.id));
         localStorage.setItem('favorites', JSON.stringify([...favoriteIds.value]));
       } catch(e) { 
-        errorFavorites.value = e.message || 'Failed to load favorites';
-        console.error('[Favorites Error]', e);
-        favorites.value = [];
-        allFavorites.value = [];
-        favoriteIds.value = new Set();
+        errorFavorites.value = e.message; 
+        console.error('Favorites fetch error:', e);
       }
       finally { loadingFavorites.value = false; }
     }
@@ -2081,11 +2081,7 @@ createApp({
         notifications.value = await API.getNotifications();
         const count = await API.getUnreadCount();
         unreadCount.value = count.count || 0;
-      } catch(e) { 
-        console.error('[Notifications Error]', e);
-        notifications.value = [];
-        unreadCount.value = 0;
-      }
+      } catch(e) { console.error('Notif fetch failed:', e); }
     }
 
     function toggleNotifDropdown() { showNotifDropdown.value = !showNotifDropdown.value; }
@@ -2127,23 +2123,18 @@ createApp({
       if (!userId) return;
       profileUserId.value = userId;
       page.value = 'profile';
-      await nextTick();
       await fetchProfile(userId);
     }
 
     async function fetchProfile(userId) {
       loadingProfile.value = true; errorProfile.value = null;
       try {
-        // Use loose equality (==) because JWT identity is a string but userId from DB/URL is an integer
-        if (userId == currentUser.value?.id) {
+        if (userId === currentUser.value?.id) {
           profileData.value = await API.getMyProfile();
         } else {
           profileData.value = await API.getProfile(userId);
         }
-      } catch(e) {
-        errorProfile.value = e.message || 'Failed to load profile';
-        console.error('[Profile Error]', e);
-      }
+      } catch(e) { errorProfile.value = e.message; }
       finally { loadingProfile.value = false; }
     }
 
