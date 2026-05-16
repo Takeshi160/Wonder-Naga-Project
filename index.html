@@ -1172,13 +1172,15 @@
                 </div>
                 <div class="form-group full" style="margin-bottom: 18px;">
                   <div class="form-label">Avatar</div>
-                  <div class="upload-box" @click="$refs.avatarInput.click()">
-                    <span class="upload-icon">🖼</span>
-                    <span>Click to upload avatar</span>
+                  <div class="upload-box" :class="{'has-image': profileEdit.avatarPreview}" @click="$refs.avatarInput.click()">
+                    <div v-if="!profileEdit.avatarPreview" class="upload-placeholder">
+                      <span class="upload-icon">🖼</span>
+                      <span>Click to upload avatar</span>
+                    </div>
+                    <div v-else class="preview-row">
+                      <div class="preview-item"><img :src="profileEdit.avatarPreview" alt="Avatar Preview"/></div>
+                    </div>
                     <input ref="avatarInput" type="file" accept="image/*" style="display:none" @change="onAvatarFile"/>
-                  </div>
-                  <div class="preview-row" v-if="profileEdit.avatarPreview">
-                    <div class="preview-item"><img :src="profileEdit.avatarPreview"/></div>
                   </div>
                 </div>
                 <div class="form-footer">
@@ -1255,7 +1257,9 @@
                 </div>
 
                 <div class="form-footer">
-                  <button class="btn-cancel" @click="clearAddForm">Clear</button>
+                  <button class="btn-cancel" @click="editingRec ? cancelEdit() : clearAddForm">
+                    {{ editingRec ? 'Cancel' : 'Clear' }}
+                  </button>
                   <button class="btn-submit" :disabled="submitLoading" @click="submitRec">
                     <span v-if="submitLoading" class="spinner" style="width:14px;height:14px;border-width:2px;"></span>
                     <span>{{ editingRec ? 'Update Recommendation' : 'Submit Recommendation' }}</span>
@@ -1360,8 +1364,25 @@ const API = (() => {
     if (token) headers['Authorization'] = `Bearer ${token}`;
     const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers, body: formData, credentials: 'include' });
     if (!res.ok) {
-      const e = await res.json().catch(() => ({}));
-      throw new Error(e.message || `HTTP ${res.status}`);
+      const text = await res.text();
+      let msg = `HTTP ${res.status}`;
+      try { const e = JSON.parse(text); msg = e.error || e.message || msg; } catch {}
+      console.error(`API POST ${path} failed:`, res.status, text);
+      throw new Error(msg);
+    }
+    return res.json();
+  }
+
+  async function uploadPut(path, formData) {
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${BASE_URL}${path}`, { method: 'PUT', headers, body: formData, credentials: 'include' });
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = `HTTP ${res.status}`;
+      try { const e = JSON.parse(text); msg = e.error || e.message || msg; } catch {}
+      console.error(`API PUT ${path} failed:`, res.status, text);
+      throw new Error(msg);
     }
     return res.json();
   }
@@ -1397,7 +1418,7 @@ const API = (() => {
     checkFavorite: (id)       => req('GET', `/favorites/check/${id}`),
     getProfile: (id)         => req('GET', `/users/${id}/profile`),
     getMyProfile: ()          => req('GET', '/users/me'),
-    updateProfile: (fd)       => upload('/users/me', fd),
+    updateProfile: (fd)       => uploadPut('/users/me', fd),
     getNotifications: ()       => req('GET', '/notifications'),
     getUnreadCount: ()         => req('GET', '/notifications/unread-count'),
     markNotifRead: (id)       => req('POST', `/notifications/${id}/read`),
@@ -1579,9 +1600,23 @@ createApp({
     function onSearch() {
       clearTimeout(searchTimer);
       searchTimer = setTimeout(() => {
+        const q = searchQuery.value.trim();
         const catMap = { restaurants: 'restaurant', cafes: 'cafe', shops: 'shop', attractions: 'attraction' };
         const cat = catMap[page.value];
-        if (cat) fetchList(cat, searchQuery.value);
+
+        if (cat) {
+          // Search within category pages
+          fetchList(cat, q);
+        } else if (page.value === 'home') {
+          // Search on home page - filter recommendations locally
+          filterHomeRecommendations(q);
+        } else if (page.value === 'allplaces') {
+          // Search on all places page
+          fetchAllPlaces(q);
+        } else if (page.value === 'favorites') {
+          // Search on favorites page - filter locally
+          filterFavorites(q);
+        }
       }, 400);
     }
 
@@ -1600,7 +1635,8 @@ createApp({
       catch { featured.value = null; }
       finally { loadingFeatured.value = false; }
       fetchTopStores();
-      fetchRecommendations();
+      await fetchRecommendations();
+      allRecommendations.value = [...recommendations.value];  // Store unfiltered copy
     }
 
     async function fetchTopStores() {
@@ -1617,6 +1653,24 @@ createApp({
       finally { loadingRecs.value = false; }
     }
 
+    const allRecommendations = ref([]);  // Store unfiltered list
+
+    function filterHomeRecommendations(q) {
+      if (!q) {
+        recommendations.value = allRecommendations.value.length ? allRecommendations.value : recommendations.value;
+        return;
+      }
+      const source = allRecommendations.value.length ? allRecommendations.value : recommendations.value;
+      const lower = q.toLowerCase();
+      recommendations.value = source.filter(r =>
+        (r.title || '').toLowerCase().includes(lower) ||
+        (r.location || '').toLowerCase().includes(lower) ||
+        (r.category || '').toLowerCase().includes(lower) ||
+        (r.description || '').toLowerCase().includes(lower) ||
+        (r.reason || '').toLowerCase().includes(lower)
+      );
+    }
+
     const listData    = ref([]);
     const loadingList = ref(false);
     const errorList   = ref(null);
@@ -1631,11 +1685,40 @@ createApp({
       finally { loadingList.value = false; }
     }
 
-    async function fetchAllPlaces() {
+    async function fetchAllPlaces(query = '') {
       loadingAll.value = true; errorAll.value = null;
-      try { allPlaces.value = await API.getAllPlaces(); }
+      try { 
+        allPlaces.value = await API.getAllPlaces(); 
+        // Filter locally if search query provided
+        if (query) {
+          const lower = query.toLowerCase();
+          allPlaces.value = allPlaces.value.filter(s =>
+            (s.name || '').toLowerCase().includes(lower) ||
+            (s.location || '').toLowerCase().includes(lower) ||
+            (s.category || '').toLowerCase().includes(lower) ||
+            (s.description || '').toLowerCase().includes(lower)
+          );
+        }
+      }
       catch(e) { errorAll.value = e.message; allPlaces.value = []; }
       finally { loadingAll.value = false; }
+    }
+
+    const allFavorites = ref([]);
+
+    function filterFavorites(q) {
+      if (!q) {
+        favorites.value = allFavorites.value.length ? allFavorites.value : favorites.value;
+        return;
+      }
+      const source = allFavorites.value.length ? allFavorites.value : favorites.value;
+      const lower = q.toLowerCase();
+      favorites.value = source.filter(f =>
+        (f.name || '').toLowerCase().includes(lower) ||
+        (f.location || '').toLowerCase().includes(lower) ||
+        (f.category || '').toLowerCase().includes(lower) ||
+        (f.description || '').toLowerCase().includes(lower)
+      );
     }
 
     const selectedStore = ref(null);
@@ -1729,8 +1812,10 @@ createApp({
         submitSuccess.value = true;
         clearAddForm();
         fetchRecommendations();
+        if (editingRec.value) goBack();  // Go back after successful edit
       } catch(e) {
-        submitError.value = e.message;
+        console.error('Submit error:', e);
+        submitError.value = e.message || 'Failed to submit. Please try again.';
       } finally {
         submitLoading.value = false;
       }
@@ -1773,6 +1858,12 @@ createApp({
       ae.value = {};
       submitError.value = null;
       editingRec.value = null;
+    }
+
+    function cancelEdit() {
+      editingRec.value = null;
+      clearAddForm();
+      goBack();
     }
 
     const adminStats  = ref({ users: 0, recommendations: 0, reports: 0 });
@@ -1931,10 +2022,15 @@ createApp({
     async function fetchFavorites() {
       loadingFavorites.value = true; errorFavorites.value = null;
       try {
-        favorites.value = await API.getFavorites();
+        const data = await API.getFavorites();
+        favorites.value = data || [];
+        allFavorites.value = [...favorites.value];
         favoriteIds.value = new Set(favorites.value.map(f => f.id));
         localStorage.setItem('favorites', JSON.stringify([...favoriteIds.value]));
-      } catch(e) { errorFavorites.value = e.message; }
+      } catch(e) { 
+        errorFavorites.value = e.message; 
+        console.error('Favorites fetch error:', e);
+      }
       finally { loadingFavorites.value = false; }
     }
 
@@ -2152,6 +2248,7 @@ createApp({
     return {
       loggedIn, authMode, authLoading, authError, fe, authForm, currentUser, isAdmin,
       switchAuth, submitAuth, logout, openAdminPanel,
+      allRecommendations, allFavorites, cancelEdit,
       page, prevPage, searchQuery, pageTitle, navigate, goBack, onSearch,
       featured, loadingFeatured, topStores, loadingTop, errorTop,
       recommendations, loadingRecs, errorRecs,
