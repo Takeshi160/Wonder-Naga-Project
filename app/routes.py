@@ -296,9 +296,10 @@ def api_store_detail(id):
         'contact': rec.contact,
         'reason': rec.reason,
         'author': rec.author.username if rec.author else 'Unknown',
+        # FIXED: was 'r.sub_category' (undefined variable), now 'rec.sub_category'
         'sub_category': {
-            'name': r.sub_category.name,
-            'icon': r.sub_category.icon
+            'name': rec.sub_category.name,
+            'icon': rec.sub_category.icon
         } if rec.sub_category else None,
         'gallery': images,
         'reviews': []
