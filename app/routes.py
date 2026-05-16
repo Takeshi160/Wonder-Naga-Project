@@ -296,10 +296,9 @@ def api_store_detail(id):
         'contact': rec.contact,
         'reason': rec.reason,
         'author': rec.author.username if rec.author else 'Unknown',
-        # FIXED: was 'r.sub_category' (undefined variable), now 'rec.sub_category'
         'sub_category': {
-            'name': rec.sub_category.name,
-            'icon': rec.sub_category.icon
+            'name': r.sub_category.name,
+            'icon': r.sub_category.icon
         } if rec.sub_category else None,
         'gallery': images,
         'reviews': []
@@ -691,6 +690,17 @@ def api_delete_sub_category(id):
 
 @app.route('/')
 def home():
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return send_from_directory(project_root, 'index.html')
+
+# Catch-all route: serve Vue app for any non-API, non-static paths
+# This fixes "Internal Server Error" when navigating from /admin back to Vue pages
+@app.route('/<path:path>')
+def catch_all(path):
+    # Don't intercept API routes or static files
+    if path.startswith('api/') or path.startswith('static/'):
+        return jsonify({'error': 'Not found'}), 404
+    # Serve the Vue app for all other routes (Vue Router handles client-side navigation)
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     return send_from_directory(project_root, 'index.html')
 
@@ -1412,8 +1422,8 @@ def edit_rec(id):
         flash('Recommendation updated.', 'success')
         return redirect(url_for('admin'))
 
-    # Redirect to Vue app home page - editing is done in the Vue interface
-    return redirect(url_for('home'))
+    # Redirect to Vue app with store ID in query param so Vue can open the edit modal
+    return redirect(url_for('home') + f'?edit={id}')
 
 # =========================================
 # OLD API ROUTES (KEEP FOR BACKWARD COMPATIBILITY)
