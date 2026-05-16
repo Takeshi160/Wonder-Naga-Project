@@ -1,6 +1,6 @@
 from flask import render_template, request, jsonify, redirect, url_for, flash, send_from_directory
 from app import app, db
-from app.models import Place, Recommendation, User, Report, SubCategory, RecommendationImage, Review
+from app.models import Place, Recommendation, User, Report, SubCategory, RecommendationImage, Review, Favorite, Notification
 from app.forms import RecommendationForm, LoginForm, RegistrationForm
 from werkzeug.utils import secure_filename
 from flask_login import login_required, login_user, logout_user, current_user
@@ -951,6 +951,287 @@ def api_delete_review(review_id):
         'message': 'Review deleted',
         'average_rating': rec.avg_rating if rec else None
     })
+
+
+# =========================================
+# FAVORITES API ROUTES
+# =========================================
+
+@app.route('/api/favorites', methods=['GET'])
+@jwt_required()
+def api_get_favorites():
+    """Get current user's favorited recommendations"""
+    user_id = get_jwt_identity()
+    favorites = Favorite.query.filter_by(user_id=user_id).all()
+    recs = [f.recommendation for f in favorites if f.recommendation]
+    return jsonify([
+        {
+            'id': r.id,
+            'name': r.title,
+            'location': r.location,
+            'category': r.category,
+            'description': r.description,
+            'hours': r.hours,
+            'image_url': r.image_url,
+            'avg_rating': r.avg_rating,
+            'contact': r.contact,
+            'reason': r.reason,
+            'author': r.author.username if r.author else 'Unknown',
+        }
+        for r in recs
+    ])
+
+@app.route('/api/favorites/check/<int:rec_id>', methods=['GET'])
+@jwt_required()
+def api_check_favorite(rec_id):
+    """Check if current user has favorited a recommendation"""
+    user_id = get_jwt_identity()
+    fav = Favorite.query.filter_by(user_id=user_id, recommendation_id=rec_id).first()
+    return jsonify({'is_favorite': fav is not None})
+
+@app.route('/api/favorites', methods=['POST'])
+@jwt_required()
+def api_add_favorite():
+    """Add a recommendation to favorites"""
+    user_id = get_jwt_identity()
+    data = request.get_json()
+    rec_id = data.get('recommendation_id')
+
+    if not rec_id:
+        return jsonify({'error': 'recommendation_id required'}), 400
+
+    existing = Favorite.query.filter_by(user_id=user_id, recommendation_id=rec_id).first()
+    if existing:
+        return jsonify({'error': 'Already in favorites'}), 400
+
+    fav = Favorite(user_id=user_id, recommendation_id=rec_id)
+    db.session.add(fav)
+    db.session.commit()
+    return jsonify({'message': 'Added to favorites'})
+
+@app.route('/api/favorites/<int:rec_id>', methods=['DELETE'])
+@jwt_required()
+def api_remove_favorite(rec_id):
+    """Remove a recommendation from favorites"""
+    user_id = get_jwt_identity()
+    fav = Favorite.query.filter_by(user_id=user_id, recommendation_id=rec_id).first()
+    if not fav:
+        return jsonify({'error': 'Not in favorites'}), 404
+
+    db.session.delete(fav)
+    db.session.commit()
+    return jsonify({'message': 'Removed from favorites'})
+
+# =========================================
+# USER PROFILE API ROUTES
+# =========================================
+
+@app.route('/api/users/<int:id>/profile', methods=['GET'])
+def api_get_user_profile(id):
+    """Get public profile for any user"""
+    user = User.query.get_or_404(id)
+    recommendations = Recommendation.query.filter_by(user_id=id).all()
+    reviews = Review.query.filter_by(user_id=id).order_by(Review.created_at.desc()).all()
+
+    return jsonify({
+        'id': user.id,
+        'username': user.username,
+        'role': user.role,
+        'bio': user.bio,
+        'avatar_url': user.avatar_url,
+        'created_at': user.created_at.isoformat() if user.created_at else None,
+        'recommendation_count': len(recommendations),
+        'review_count': len(reviews),
+        'recommendations': [
+            {
+                'id': r.id,
+                'title': r.title,
+                'category': r.category,
+                'location': r.location,
+                'image_url': r.image_url,
+                'avg_rating': r.avg_rating,
+            }
+            for r in recommendations
+        ],
+        'reviews': [
+            {
+                'id': rev.id,
+                'rating': rev.rating,
+                'comment': rev.comment,
+                'recommendation_title': rev.recommendation.title if rev.recommendation else 'Unknown',
+                'recommendation_id': rev.recommendation_id,
+                'created_at': rev.created_at.isoformat() if rev.created_at else None,
+            }
+            for rev in reviews
+        ]
+    })
+
+@app.route('/api/users/me', methods=['GET'])
+@jwt_required()
+def api_get_my_profile():
+    """Get current user's own profile"""
+    user_id = get_jwt_identity()
+    user = User.query.get_or_404(int(user_id))
+    return jsonify({
+        'id': user.id,
+        'username': user.username,
+        'role': user.role,
+        'bio': user.bio,
+        'avatar_url': user.avatar_url,
+        'created_at': user.created_at.isoformat() if user.created_at else None,
+    })
+
+@app.route('/api/users/me', methods=['PUT'])
+@jwt_required()
+def api_update_my_profile():
+    """Update current user's profile (bio, avatar)"""
+    user_id = get_jwt_identity()
+    user = User.query.get_or_404(int(user_id))
+
+    data = request.get_json()
+
+    if 'bio' in data:
+        user.bio = data['bio'][:500] if data['bio'] else None  # max 500 chars
+
+    if 'avatar_url' in data:
+        user.avatar_url = data['avatar_url'] if data['avatar_url'] else None
+
+    db.session.commit()
+    return jsonify({
+        'message': 'Profile updated',
+        'bio': user.bio,
+        'avatar_url': user.avatar_url,
+    })
+
+# =========================================
+# NOTIFICATION API ROUTES
+# =========================================
+
+def create_notification(user_id, message, type='general', link=None):
+    """Helper to create a notification"""
+    notif = Notification(
+        user_id=user_id,
+        message=message,
+        type=type,
+        link=link,
+        is_read=False
+    )
+    db.session.add(notif)
+    db.session.commit()
+    return notif
+
+@app.route('/api/notifications', methods=['GET'])
+@jwt_required()
+def api_get_notifications():
+    """Get current user's notifications"""
+    user_id = get_jwt_identity()
+    notifs = Notification.query.filter_by(user_id=user_id).order_by(Notification.created_at.desc()).all()
+    return jsonify([
+        {
+            'id': n.id,
+            'message': n.message,
+            'type': n.type,
+            'link': n.link,
+            'is_read': n.is_read,
+            'created_at': n.created_at.isoformat() if n.created_at else None,
+        }
+        for n in notifs
+    ])
+
+@app.route('/api/notifications/unread-count', methods=['GET'])
+@jwt_required()
+def api_get_unread_count():
+    """Get count of unread notifications"""
+    user_id = get_jwt_identity()
+    count = Notification.query.filter_by(user_id=user_id, is_read=False).count()
+    return jsonify({'unread_count': count})
+
+@app.route('/api/notifications/<int:id>/read', methods=['POST'])
+@jwt_required()
+def api_mark_notification_read(id):
+    """Mark a notification as read"""
+    user_id = get_jwt_identity()
+    notif = Notification.query.get_or_404(id)
+
+    if notif.user_id != int(user_id):
+        return jsonify({'error': 'Not authorized'}), 403
+
+    notif.is_read = True
+    db.session.commit()
+    return jsonify({'message': 'Marked as read'})
+
+@app.route('/api/notifications/read-all', methods=['POST'])
+@jwt_required()
+def api_mark_all_read():
+    """Mark all notifications as read"""
+    user_id = get_jwt_identity()
+    Notification.query.filter_by(user_id=user_id, is_read=False).update({'is_read': True})
+    db.session.commit()
+    return jsonify({'message': 'All marked as read'})
+
+# =========================================
+# ENHANCED SEARCH & FILTER API
+# =========================================
+
+@app.route('/api/stores', methods=['GET'])
+def api_stores():
+    category = request.args.get('category', '')
+    search = request.args.get('search', '')
+    sub_category = request.args.get('sub_category', '')
+    min_rating = request.args.get('min_rating', '')
+    sort_by = request.args.get('sort_by', '')  # 'newest', 'rating', 'name'
+
+    query = Recommendation.query
+
+    if category:
+        query = query.filter_by(category=category)
+
+    if sub_category:
+        query = query.filter_by(sub_category_id=sub_category)
+
+    if search:
+        query = query.filter(
+            Recommendation.title.ilike(f"%{search}%") | 
+            Recommendation.description.ilike(f"%{search}%") |
+            Recommendation.location.ilike(f"%{search}%")
+        )
+
+    if min_rating:
+        try:
+            query = query.filter(Recommendation.avg_rating >= float(min_rating))
+        except ValueError:
+            pass
+
+    # Sorting
+    if sort_by == 'newest':
+        query = query.order_by(Recommendation.created_at.desc())
+    elif sort_by == 'rating':
+        query = query.order_by(Recommendation.avg_rating.desc())
+    elif sort_by == 'name':
+        query = query.order_by(Recommendation.title.asc())
+    # default: no specific order
+
+    recs = query.all()
+    return jsonify([
+        {
+            'id': r.id,
+            'name': r.title,
+            'location': r.location,
+            'category': r.category,
+            'description': r.description,
+            'hours': r.hours,
+            'image_url': r.image_url,
+            'avg_rating': r.avg_rating,
+            'contact': r.contact,
+            'reason': r.reason,
+            'author': r.author.username if r.author else 'Unknown',
+            'sub_category': {
+                'name': r.sub_category.name,
+                'icon': r.sub_category.icon
+            } if r.sub_category else None
+        }
+        for r in recs
+    ])
 
 # =========================================
 # OLD API ROUTES (KEEP FOR BACKWARD COMPATIBILITY)
