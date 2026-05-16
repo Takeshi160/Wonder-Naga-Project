@@ -9,14 +9,20 @@ from datetime import datetime
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True, nullable=False)
+    name = db.Column(db.String(100), nullable=True)           # NEW: display name
     password = db.Column(db.String(200), nullable=False)
     role = db.Column(db.String(20), default='user')  # 'user' or 'admin'
+    bio = db.Column(db.Text, nullable=True)                    # NEW: user bio
+    avatar_url = db.Column(db.Text, nullable=True)             # NEW: base64 avatar
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
+
     # Relationships
     places = db.relationship('Place', backref='author', lazy='dynamic')
     recommendations = db.relationship('Recommendation', backref='author', lazy='dynamic')
     reports = db.relationship('Report', backref='reporter', lazy='dynamic')
+    reviews = db.relationship('Review', backref='author', lazy='dynamic')           # NEW
+    favorites = db.relationship('Favorite', backref='user', lazy='dynamic', cascade='all, delete-orphan')  # NEW
+    notifications = db.relationship('Notification', backref='user', lazy='dynamic', cascade='all, delete-orphan')  # NEW
 
     def __repr__(self):
         return f'<User {self.username}>'
@@ -37,7 +43,7 @@ class Place(db.Model):
     avg_rating = db.Column(db.Float, default=5)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
+
     # Images relationship
     images = db.relationship('PlaceImage', backref='place', lazy='dynamic', cascade='all, delete-orphan')
 
@@ -66,7 +72,7 @@ class SubCategory(db.Model):
     icon = db.Column(db.String(10), default='📌')
     category = db.Column(db.String(50), nullable=False)  # parent category
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
+
     def __repr__(self):
         return f'<SubCategory {self.name}>'
 
@@ -89,11 +95,13 @@ class Recommendation(db.Model):
     avg_rating = db.Column(db.Float, default=5)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
+
     # Relationships
     images = db.relationship('RecommendationImage', backref='recommendation', lazy='dynamic', cascade='all, delete-orphan')
     sub_category = db.relationship('SubCategory', backref='recommendations', lazy=True)
     reports = db.relationship('Report', backref='reported_rec', lazy='dynamic', cascade='all, delete-orphan')
+    reviews = db.relationship('Review', backref='recommendation', lazy='dynamic', cascade='all, delete-orphan')
+    favorites = db.relationship('Favorite', backref='recommendation', lazy='dynamic', cascade='all, delete-orphan')
 
     def __repr__(self):
         return f'<Recommendation {self.title}>'
@@ -135,13 +143,44 @@ class Review(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Relationships
-    author = db.relationship('User', backref='reviews', lazy=True)
-    recommendation = db.relationship('Recommendation', backref='reviews', lazy=True)
-
     __table_args__ = (
         db.UniqueConstraint('recommendation_id', 'user_id', name='uix_one_review_per_user'),
     )
 
     def __repr__(self):
         return f'<Review {self.rating}★ by {self.user_id}>'
+
+
+# =========================
+# FAVORITE MODEL (NEW)
+# =========================
+
+class Favorite(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    recommendation_id = db.Column(db.Integer, db.ForeignKey('recommendation.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'recommendation_id', name='uix_one_favorite_per_user'),
+    )
+
+    def __repr__(self):
+        return f'<Favorite user={self.user_id} rec={self.recommendation_id}>'
+
+
+# =========================
+# NOTIFICATION MODEL (NEW)
+# =========================
+
+class Notification(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    message = db.Column(db.String(500), nullable=False)
+    type = db.Column(db.String(50), default='general')  # 'general', 'review', 'report', 'admin'
+    link = db.Column(db.String(200), nullable=True)
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<Notification to={self.user_id} read={self.is_read}>'
