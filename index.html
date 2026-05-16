@@ -107,7 +107,7 @@
       color: var(--accent); padding: 0 22px 28px; border-bottom: 1px solid var(--border);
     }
     .sidebar-brand span { color: var(--text); }
-    .nav-list { list-style: none; padding: 18px 12px; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+    .nav-list { list-style: none; padding: 18px 12px; flex: 1; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; min-height: 0; }
     .nav-item {
       display: flex; align-items: center; gap: 10px;
       padding: 11px 14px; border-radius: 9px; cursor: pointer;
@@ -116,7 +116,13 @@
     .nav-item:hover { background: var(--surface2); color: var(--text); }
     .nav-item.active { background: rgba(201,168,76,.13); color: var(--accent); font-weight: 500; }
     .nav-icon { font-size: 15px; width: 20px; text-align: center; }
-    .sidebar-footer { padding: 18px 12px 0; border-top: 1px solid var(--border); }
+    .sidebar-footer { padding: 18px 12px 0; border-top: 1px solid var(--border); flex-shrink: 0; }
+    .sidebar-credit {
+      padding: 10px 14px 14px;
+      font-size: 10px; color: var(--muted);
+      line-height: 1.5;
+    }
+    .sidebar-credit strong { color: var(--accent); display: block; font-size: 11px; }
 
     /* ── MAIN ── */
     .main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
@@ -250,21 +256,55 @@
     .form-error { font-size: 11px; color: var(--danger); }
     .form-textarea { resize: vertical; min-height: 90px; }
     .form-select { cursor: pointer; }
+    /* ═══════════════════════════════════════════════
+       IMAGE UPLOAD — FIXED: image now shows properly inside the box
+       ═══════════════════════════════════════════════ */
     .upload-box {
-      border: 1.5px dashed var(--border); border-radius: 10px; height: 120px;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 8px; cursor: pointer; transition: border-color .2s; color: var(--muted); font-size: 13px;
+      border: 1.5px dashed var(--border);
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: border-color .2s;
+      padding: 20px;
+      position: relative;
+      text-align: center;
+      min-height: 120px;
     }
-    .upload-box:hover { border-color: var(--accent); color: var(--accent); }
-    .upload-icon { font-size: 28px; }
-    .preview-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
-    .preview-item { width: 80px; height: 80px; border-radius: 8px; border: 1px solid var(--border); overflow: hidden; position: relative; }
-    .preview-item img { width: 100%; height: 100%; object-fit: cover; }
+    .upload-box:hover { border-color: var(--accent); }
+    .upload-box.has-image { border-style: solid; border-color: var(--accent); padding: 10px; }
+    .upload-placeholder { display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
+    .upload-icon { font-size: 30px; }
+    .preview-row { width: 100%; display: flex; flex-direction: column; }
+    .preview-item {
+      width: 100%;
+      height: auto;
+      border-radius: 8px;
+      overflow: hidden;
+      border: none;
+      display: block;
+      position: relative;
+    }
+    .preview-item img {
+      width: 100%;
+      height: auto;
+      object-fit: contain;
+      display: block;
+      border-radius: 8px;
+    }
     .preview-remove {
-      position: absolute; top: 4px; right: 4px; width: 18px; height: 18px;
-      border-radius: 50%; background: rgba(0,0,0,.7); border: none; color: #fff;
-      font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      position: absolute; top: 8px; right: 8px; width: 24px; height: 24px;
+      border-radius: 50%; background: rgba(0,0,0,.7); border: 1px solid rgba(255,255,255,.2);
+      color: #fff; font-size: 12px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .2s;
+      z-index: 2;
     }
+    .preview-remove:hover { background: var(--danger); }
+    .upload-hint { margin-top: 10px; font-size: 12px; color: var(--muted); }
     .form-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
     .btn-submit {
       padding: 12px 32px; background: linear-gradient(135deg, var(--accent), var(--accent2));
@@ -603,6 +643,7 @@
   </style>
 <base target="_blank">
 <base target="_blank">
+<base target="_blank">
 </head>
 <body>
 <div id="app">
@@ -678,8 +719,8 @@
           </li>
         </ul>
         <div class="sidebar-footer">
-          <div style="padding: 0 22px 12px; font-size: 11px; color: var(--muted);">
-            {{ currentUser?.name || currentUser?.username || 'User' }}
+          <div class="sidebar-credit">
+            <strong>Jerome G. Flores</strong>
           </div>
           <div class="nav-item" @click="logout"><span class="nav-icon">⎋</span> Sign Out</div>
         </div>
@@ -1130,9 +1171,14 @@
                 </div>
                 <div class="form-group full" style="margin-bottom: 18px;">
                   <div class="form-label">Avatar</div>
-                  <div class="upload-box" @click="$refs.avatarInput.click()">
-                    <span class="upload-icon">🖼</span>
-                    <span>Click to upload avatar</span>
+                  <div class="upload-box" :class="{'has-image': profileEdit.avatarPreview}" @click="$refs.avatarInput.click()">
+                    <div v-if="!profileEdit.avatarPreview" class="upload-placeholder">
+                      <span class="upload-icon">🖼</span>
+                      <span>Click to upload avatar</span>
+                    </div>
+                    <div v-else class="preview-row">
+                      <div class="preview-item"><img :src="profileEdit.avatarPreview" alt="Avatar Preview"/></div>
+                    </div>
                     <input ref="avatarInput" type="file" accept="image/*" style="display:none" @change="onAvatarFile"/>
                   </div>
                   <div class="preview-row" v-if="profileEdit.avatarPreview">
@@ -1157,17 +1203,20 @@
               <div class="add-form">
                 <div class="form-group full" style="margin-bottom:18px;">
                   <div class="form-label">Images</div>
-                  <div class="upload-box" @click="$refs.fileInput.click()">
-                    <span class="upload-icon">🖼</span>
-                    <span>Click to upload images</span>
+                  <div class="upload-box" :class="{'has-image': addForm.previews.length}" @click="$refs.fileInput.click()">
+                    <div v-if="!addForm.previews.length" class="upload-placeholder">
+                      <span class="upload-icon">🖼</span>
+                      <span>Click to upload images</span>
+                    </div>
+                    <div v-else class="preview-row">
+                      <div class="preview-item" v-for="(src,i) in addForm.previews" :key="i">
+                        <img :src="src" alt="Preview"/>
+                        <button class="preview-remove" @click.stop="removeImg(i)">✕</button>
+                      </div>
+                    </div>
                     <input ref="fileInput" type="file" accept="image/*" multiple style="display:none" @change="onFiles"/>
                   </div>
-                  <div class="preview-row" v-if="addForm.previews.length">
-                    <div class="preview-item" v-for="(src,i) in addForm.previews" :key="i">
-                      <img :src="src"/>
-                      <button class="preview-remove" @click="removeImg(i)">✕</button>
-                    </div>
-                  </div>
+                  <div class="upload-hint" v-if="!addForm.previews.length">Supported formats: JPG, PNG, WEBP</div>
                 </div>
 
                 <div class="form-grid">
@@ -1962,12 +2011,12 @@ createApp({
     async function fetchProfile(userId) {
       loadingProfile.value = true; errorProfile.value = null;
       try {
-        if (userId === currentUser.value?.id) {
-          profileData.value = await API.getMyProfile();
-        } else {
-          profileData.value = await API.getProfile(userId);
-        }
-      } catch(e) { errorProfile.value = e.message; }
+        // FIXED: Use public profile endpoint for all profiles (works for own + others)
+        profileData.value = await API.getProfile(userId);
+      } catch(e) { 
+        errorProfile.value = e.message; 
+        console.error('Profile fetch error:', e);
+      }
       finally { loadingProfile.value = false; }
     }
 
