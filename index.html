@@ -644,6 +644,7 @@
 <base target="_blank">
 <base target="_blank">
 <base target="_blank">
+<base target="_blank">
 </head>
 <body>
 <div id="app">
@@ -1345,6 +1346,9 @@ const API = (() => {
     if (token) headers['Authorization'] = `Bearer ${token}`;
     const opts = { method, headers, credentials: 'include' };
     if (body) opts.body = JSON.stringify(body);
+
+    console.log(`[API] ${method} ${BASE_URL}${path}`);
+
     const res = await fetch(`${BASE_URL}${path}`, opts);
     if (!res.ok) {
       const text = await res.text();
@@ -1353,7 +1357,7 @@ const API = (() => {
         const e = JSON.parse(text);
         msg = e.error || e.message || msg;
       } catch {}
-      console.error(`API ${method} ${path} failed:`, res.status, text);
+      console.error(`[API ERROR] ${method} ${path}:`, res.status, msg);
       throw new Error(msg);
     }
     return res.json();
@@ -1362,12 +1366,13 @@ const API = (() => {
   async function upload(path, formData) {
     const headers = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
+    console.log(`[API UPLOAD] POST ${BASE_URL}${path}`);
     const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers, body: formData, credentials: 'include' });
     if (!res.ok) {
       const text = await res.text();
       let msg = `HTTP ${res.status}`;
       try { const e = JSON.parse(text); msg = e.error || e.message || msg; } catch {}
-      console.error(`API POST ${path} failed:`, res.status, text);
+      console.error(`[API ERROR] POST ${path}:`, res.status, msg);
       throw new Error(msg);
     }
     return res.json();
@@ -1376,12 +1381,13 @@ const API = (() => {
   async function uploadPut(path, formData) {
     const headers = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
+    console.log(`[API UPLOAD] PUT ${BASE_URL}${path}`);
     const res = await fetch(`${BASE_URL}${path}`, { method: 'PUT', headers, body: formData, credentials: 'include' });
     if (!res.ok) {
       const text = await res.text();
       let msg = `HTTP ${res.status}`;
       try { const e = JSON.parse(text); msg = e.error || e.message || msg; } catch {}
-      console.error(`API PUT ${path} failed:`, res.status, text);
+      console.error(`[API ERROR] PUT ${path}:`, res.status, msg);
       throw new Error(msg);
     }
     return res.json();
@@ -2023,13 +2029,18 @@ createApp({
       loadingFavorites.value = true; errorFavorites.value = null;
       try {
         const data = await API.getFavorites();
-        favorites.value = data || [];
-        allFavorites.value = [...favorites.value];
-        favoriteIds.value = new Set(favorites.value.map(f => f.id));
+        // Ensure we always have an array (backend might return object or null)
+        const arr = Array.isArray(data) ? data : (data && Array.isArray(data.favorites) ? data.favorites : []);
+        favorites.value = arr;
+        allFavorites.value = [...arr];
+        favoriteIds.value = new Set(arr.map(f => f.id).filter(Boolean));
         localStorage.setItem('favorites', JSON.stringify([...favoriteIds.value]));
       } catch(e) { 
-        errorFavorites.value = e.message; 
-        console.error('Favorites fetch error:', e);
+        errorFavorites.value = e.message || 'Failed to load favorites';
+        console.error('[Favorites Error]', e);
+        favorites.value = [];
+        allFavorites.value = [];
+        favoriteIds.value = new Set();
       }
       finally { loadingFavorites.value = false; }
     }
@@ -2070,7 +2081,11 @@ createApp({
         notifications.value = await API.getNotifications();
         const count = await API.getUnreadCount();
         unreadCount.value = count.count || 0;
-      } catch(e) { console.error('Notif fetch failed:', e); }
+      } catch(e) { 
+        console.error('[Notifications Error]', e);
+        notifications.value = [];
+        unreadCount.value = 0;
+      }
     }
 
     function toggleNotifDropdown() { showNotifDropdown.value = !showNotifDropdown.value; }
@@ -2112,18 +2127,23 @@ createApp({
       if (!userId) return;
       profileUserId.value = userId;
       page.value = 'profile';
+      await nextTick();
       await fetchProfile(userId);
     }
 
     async function fetchProfile(userId) {
       loadingProfile.value = true; errorProfile.value = null;
       try {
-        if (userId === currentUser.value?.id) {
+        // Use loose equality (==) because JWT identity is a string but userId from DB/URL is an integer
+        if (userId == currentUser.value?.id) {
           profileData.value = await API.getMyProfile();
         } else {
           profileData.value = await API.getProfile(userId);
         }
-      } catch(e) { errorProfile.value = e.message; }
+      } catch(e) {
+        errorProfile.value = e.message || 'Failed to load profile';
+        console.error('[Profile Error]', e);
+      }
       finally { loadingProfile.value = false; }
     }
 
