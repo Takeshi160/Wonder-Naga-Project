@@ -4,6 +4,7 @@ from flask_migrate import Migrate
 from flask_login import LoginManager
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
+from datetime import timedelta
 import os
 
 app = Flask(__name__)
@@ -31,6 +32,12 @@ else:
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SECRET_KEY"] = "wondernaga-secret-key"
 app.config["JWT_SECRET_KEY"] = "wondernaga-jwt-secret"
+
+# JWT Token Expiry Settings:
+# - Remember Me checked: permanent (no expiry)
+# - Remember Me unchecked: 24 hours
+# This is controlled in the login route based on user choice
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = False  # Default: permanent (can be overridden per-token)
 
 app.config["UPLOAD_FOLDER"] = os.path.join(
     app.root_path,
