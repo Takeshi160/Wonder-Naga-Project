@@ -120,3 +120,28 @@ class Report(db.Model):
 
     def __repr__(self):
         return f'<Report {self.id}>'
+
+
+# =========================
+# REVIEW MODEL (ratings & comments)
+# =========================
+
+class Review(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    recommendation_id = db.Column(db.Integer, db.ForeignKey('recommendation.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    rating = db.Column(db.Integer, nullable=False)  # 1–5 stars
+    comment = db.Column(db.Text, nullable=True)       # optional comment text
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    author = db.relationship('User', backref='reviews', lazy=True)
+    recommendation = db.relationship('Recommendation', backref='reviews', lazy=True)
+
+    __table_args__ = (
+        db.UniqueConstraint('recommendation_id', 'user_id', name='uix_one_review_per_user'),
+    )
+
+    def __repr__(self):
+        return f'<Review {self.rating}★ by {self.user_id}>'
