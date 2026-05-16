@@ -22,7 +22,7 @@ if DATABASE_URL:
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
     elif DATABASE_URL.startswith("postgresql://"):
         DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
-    
+
     app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 else:
     # Local development: SQLite in project folder
@@ -47,7 +47,14 @@ migrate = Migrate(app, db)
 login = LoginManager(app)
 jwt = JWTManager(app)
 
-CORS(app)
+# FIXED: CORS with credentials support for Vue frontend
+CORS(app, supports_credentials=True, resources={
+    r"/api/*": {
+        "origins": "*",
+        "allow_headers": ["Content-Type", "Authorization"],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    }
+})
 
 # =========================
 # IMPORT MODELS FIRST
@@ -64,6 +71,13 @@ from app.models import User
 @login.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
+
+# =========================
+# AUTO-CREATE MISSING TABLES (safe for Render)
+# =========================
+
+with app.app_context():
+    db.create_all()
 
 # =========================
 # ROUTES
