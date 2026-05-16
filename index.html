@@ -256,21 +256,55 @@
     .form-error { font-size: 11px; color: var(--danger); }
     .form-textarea { resize: vertical; min-height: 90px; }
     .form-select { cursor: pointer; }
+    /* ═══════════════════════════════════════════════
+       IMAGE UPLOAD — FIXED: image shows inside the box
+       ═══════════════════════════════════════════════ */
     .upload-box {
-      border: 1.5px dashed var(--border); border-radius: 10px; height: 120px;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 8px; cursor: pointer; transition: border-color .2s; color: var(--muted); font-size: 13px;
+      border: 1.5px dashed var(--border);
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: border-color .2s;
+      padding: 20px;
+      position: relative;
+      text-align: center;
+      min-height: 120px;
     }
-    .upload-box:hover { border-color: var(--accent); color: var(--accent); }
-    .upload-icon { font-size: 28px; }
-    .preview-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
-    .preview-item { width: 80px; height: 80px; border-radius: 8px; border: 1px solid var(--border); overflow: hidden; position: relative; }
-    .preview-item img { width: 100%; height: 100%; object-fit: cover; }
+    .upload-box:hover { border-color: var(--accent); }
+    .upload-box.has-image { border-style: solid; border-color: var(--accent); padding: 10px; }
+    .upload-placeholder { display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
+    .upload-icon { font-size: 30px; }
+    .preview-row { width: 100%; display: flex; flex-direction: column; }
+    .preview-item {
+      width: 100%;
+      height: auto;
+      border-radius: 8px;
+      overflow: hidden;
+      border: none;
+      display: block;
+      position: relative;
+    }
+    .preview-item img {
+      width: 100%;
+      height: auto;
+      object-fit: contain;
+      display: block;
+      border-radius: 8px;
+    }
     .preview-remove {
-      position: absolute; top: 4px; right: 4px; width: 18px; height: 18px;
-      border-radius: 50%; background: rgba(0,0,0,.7); border: none; color: #fff;
-      font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      position: absolute; top: 8px; right: 8px; width: 24px; height: 24px;
+      border-radius: 50%; background: rgba(0,0,0,.7); border: 1px solid rgba(255,255,255,.2);
+      color: #fff; font-size: 12px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .2s;
+      z-index: 2;
     }
+    .preview-remove:hover { background: var(--danger); }
+    .upload-hint { margin-top: 10px; font-size: 12px; color: var(--muted); }
     .form-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
     .btn-submit {
       padding: 12px 32px; background: linear-gradient(135deg, var(--accent), var(--accent2));
@@ -1165,17 +1199,20 @@
               <div class="add-form">
                 <div class="form-group full" style="margin-bottom:18px;">
                   <div class="form-label">Images</div>
-                  <div class="upload-box" @click="$refs.fileInput.click()">
-                    <span class="upload-icon">🖼</span>
-                    <span>Click to upload images</span>
+                  <div class="upload-box" :class="{'has-image': addForm.previews.length}" @click="$refs.fileInput.click()">
+                    <div v-if="!addForm.previews.length" class="upload-placeholder">
+                      <span class="upload-icon">🖼</span>
+                      <span>Click to upload images</span>
+                    </div>
+                    <div v-else class="preview-row">
+                      <div class="preview-item" v-for="(src,i) in addForm.previews" :key="i">
+                        <img :src="src" alt="Preview"/>
+                        <button class="preview-remove" @click.stop="removeImg(i)">✕</button>
+                      </div>
+                    </div>
                     <input ref="fileInput" type="file" accept="image/*" multiple style="display:none" @change="onFiles"/>
                   </div>
-                  <div class="preview-row" v-if="addForm.previews.length">
-                    <div class="preview-item" v-for="(src,i) in addForm.previews" :key="i">
-                      <img :src="src"/>
-                      <button class="preview-remove" @click="removeImg(i)">✕</button>
-                    </div>
-                  </div>
+                  <div class="upload-hint" v-if="!addForm.previews.length">Supported formats: JPG, PNG, WEBP</div>
                 </div>
 
                 <div class="form-grid">
@@ -1306,8 +1343,14 @@ const API = (() => {
     if (body) opts.body = JSON.stringify(body);
     const res = await fetch(`${BASE_URL}${path}`, opts);
     if (!res.ok) {
-      const e = await res.json().catch(() => ({}));
-      throw new Error(e.message || `HTTP ${res.status}`);
+      const text = await res.text();
+      let msg = `HTTP ${res.status}`;
+      try {
+        const e = JSON.parse(text);
+        msg = e.error || e.message || msg;
+      } catch {}
+      console.error(`API ${method} ${path} failed:`, res.status, text);
+      throw new Error(msg);
     }
     return res.json();
   }
@@ -1716,7 +1759,8 @@ createApp({
         fetchRecommendations();
         fetchAdminData();
       } catch(e) {
-        alert('Failed to delete: ' + e.message);
+        console.error('Delete error:', e);
+        alert('Failed to delete: ' + e.message + '\n\nMake sure you are logged in as admin or the owner.');
       }
     }
 
