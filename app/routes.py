@@ -745,36 +745,41 @@ def logout():
 
 @app.route('/admin')
 def admin():
-    # Support both Flask-Login session and JWT token
-    user = get_current_user_for_template()
+    try:
+        # Support both Flask-Login session and JWT token
+        user = get_current_user_for_template()
 
-    if not user or user.role != 'admin':
-        return render_template('admin.html', 
+        if not user or user.role != 'admin':
+            return render_template('admin.html', 
+                current_user=user,
+                total_users=0,
+                total_stores=0,
+                pending_reports=[],
+                users=[],
+                all_stores=[],
+                dynamic_subcats=[]
+            )
+
+        total_users = User.query.count()
+        total_stores = Recommendation.query.count()
+        pending_reports = Report.query.filter_by(status='pending').all()
+        users = User.query.all()
+        all_stores = Recommendation.query.all()
+        dynamic_subcats = SubCategory.query.all()
+
+        return render_template('admin.html',
             current_user=user,
-            total_users=0,
-            total_stores=0,
-            pending_reports=[],
-            users=[],
-            all_stores=[],
-            dynamic_subcats=[]
+            total_users=total_users,
+            total_stores=total_stores,
+            pending_reports=pending_reports,
+            users=users,
+            all_stores=all_stores,
+            dynamic_subcats=dynamic_subcats
         )
-
-    total_users = User.query.count()
-    total_stores = Recommendation.query.count()
-    pending_reports = Report.query.filter_by(status='pending').all()
-    users = User.query.all()
-    all_stores = Recommendation.query.all()
-    dynamic_subcats = SubCategory.query.all()
-
-    return render_template('admin.html',
-        current_user=user,
-        total_users=total_users,
-        total_stores=total_stores,
-        pending_reports=pending_reports,
-        users=users,
-        all_stores=all_stores,
-        dynamic_subcats=dynamic_subcats
-    )
+    except Exception as e:
+        import traceback
+        app.logger.error(f"Admin page error: {str(e)}\n{traceback.format_exc()}")
+        return f"<h1>Admin Panel Error</h1><pre>{str(e)}</pre><pre>{traceback.format_exc()}</pre>", 500
 
 @app.route('/store/<int:id>')
 def store_detail(id):
@@ -1263,6 +1268,151 @@ def api_mark_all_read():
     db.session.commit()
     return jsonify({'message': 'All marked as read'})
 
+
+
+# =========================================
+# JINJA2 ADMIN FORM ROUTES (for admin.html)
+# =========================================
+
+@app.route('/admin/dismiss-report/<int:report_id>', methods=['POST'])
+@login_required
+@admin_required
+def admin_dismiss_report(report_id):
+    report = Report.query.get_or_404(report_id)
+    report.status = 'dismissed'
+    db.session.commit()
+
+    if report.reporter_id:
+        create_notification(
+            report.reporter_id,
+            f"Your report on '{report.reported_rec.title if report.reported_rec else 'a store'}' was dismissed.",
+            type='report',
+            link=f"/store/{report.store_id}"
+        )
+
+    flash('Report dismissed.', 'success')
+    return redirect(url_for('admin'))
+
+@app.route('/admin/delete-rec/<int:id>', methods=['POST'])
+@login_required
+@admin_required
+def admin_delete_rec(id):
+    rec = Recommendation.query.get_or_404(id)
+    title = rec.title
+    db.session.delete(rec)
+    db.session.commit()
+    flash(f'Store "{title}" deleted.', 'success')
+    return redirect(url_for('admin'))
+
+@app.route('/admin/promote/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def admin_promote(user_id):
+    user = User.query.get_or_404(user_id)
+    user.role = 'admin'
+    db.session.commit()
+
+    create_notification(
+        user.id,
+        "You have been promoted to Admin!",
+        type='admin'
+    )
+
+    flash(f'User {user.username} promoted to admin.', 'success')
+    return redirect(url_for('admin'))
+
+@app.route('/admin/demote/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def admin_demote(user_id):
+    user = User.query.get_or_404(user_id)
+    user.role = 'user'
+    db.session.commit()
+    flash(f'User {user.username} demoted to user.', 'success')
+    return redirect(url_for('admin'))
+
+@app.route('/admin/delete-user/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def admin_delete_user(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        flash('Cannot delete yourself!', 'error')
+        return redirect(url_for('admin'))
+
+    username = user.username
+    db.session.delete(user)
+    db.session.commit()
+    flash(f'User {username} deleted.', 'success')
+    return redirect(url_for('admin'))
+
+@app.route('/admin/delete-subcat/<int:subcat_id>', methods=['POST'])
+@login_required
+@admin_required
+def admin_delete_subcat(subcat_id):
+    sub = SubCategory.query.get_or_404(subcat_id)
+    name = sub.name
+    db.session.delete(sub)
+    db.session.commit()
+    flash(f'Sub-category "{name}" deleted.', 'success')
+    return redirect(url_for('admin'))
+
+@app.route('/admin/add-subcat', methods=['POST'])
+@login_required
+@admin_required
+def admin_add_subcat():
+    icon = request.form.get('icon', '📌')
+    name = request.form.get('name')
+
+    if not name:
+        flash('Name is required.', 'error')
+        return redirect(url_for('admin'))
+
+    sub = SubCategory(name=name, icon=icon, category='other')
+    db.session.add(sub)
+    db.session.commit()
+    flash(f'Sub-category "{name}" added.', 'success')
+    return redirect(url_for('admin'))
+
+@app.route('/edit/<int:id>', methods=['GET', 'POST'])
+@login_required
+def edit_rec(id):
+    rec = Recommendation.query.get_or_404(id)
+
+    # Check authorization
+    if rec.user_id != current_user.id and current_user.role != 'admin':
+        flash('Not authorized.', 'error')
+        return redirect(url_for('home'))
+
+    if request.method == 'POST':
+        rec.title = request.form.get('name', rec.title)
+        rec.location = request.form.get('location', rec.location)
+        rec.category = request.form.get('category', rec.category)
+        rec.description = request.form.get('description', rec.description)
+        rec.hours = request.form.get('hours', rec.hours)
+        rec.reason = request.form.get('reason', rec.reason)
+        rec.contact = request.form.get('contact', rec.contact)
+
+        files = request.files.getlist('images')
+        if files and files[0]:
+            file = files[0]
+            if file and allowed_file(file.filename):
+                file_data = file.read()
+                base64_string = base64.b64encode(file_data).decode('utf-8')
+                ext = file.filename.rsplit('.', 1)[1].lower()
+                mime_types = {
+                    'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+                    'gif': 'image/gif', 'webp': 'image/webp'
+                }
+                mime = mime_types.get(ext, 'image/jpeg')
+                rec.image_url = f"data:{mime};base64,{base64_string}"
+
+        db.session.commit()
+        flash('Recommendation updated.', 'success')
+        return redirect(url_for('admin'))
+
+    # Redirect to Vue app home page - editing is done in the Vue interface
+    return redirect(url_for('home'))
 
 # =========================================
 # OLD API ROUTES (KEEP FOR BACKWARD COMPATIBILITY)
