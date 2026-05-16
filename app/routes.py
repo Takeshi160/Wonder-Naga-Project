@@ -297,8 +297,8 @@ def api_store_detail(id):
         'reason': rec.reason,
         'author': rec.author.username if rec.author else 'Unknown',
         'sub_category': {
-            'name': r.sub_category.name,
-            'icon': r.sub_category.icon
+            'name': rec.sub_category.name,
+            'icon': rec.sub_category.icon
         } if rec.sub_category else None,
         'gallery': images,
         'reviews': []
@@ -1051,25 +1051,30 @@ def api_delete_review(review_id):
 @jwt_required()
 def api_get_favorites():
     """Get current user's favorited recommendations"""
-    user_id = int(get_jwt_identity())
-    favorites = Favorite.query.filter_by(user_id=user_id).all()
-    recs = [f.recommendation for f in favorites if f.recommendation]
-    return jsonify([
-        {
-            'id': r.id,
-            'name': r.title,
-            'location': r.location,
-            'category': r.category,
-            'description': r.description,
-            'hours': r.hours,
-            'image_url': r.image_url,
-            'avg_rating': r.avg_rating,
-            'contact': r.contact,
-            'reason': r.reason,
-            'author': r.author.username if r.author else 'Unknown',
-        }
-        for r in recs
-    ])
+    try:
+        user_id = int(get_jwt_identity())
+        favorites = Favorite.query.filter_by(user_id=user_id).all()
+        recs = [f.recommendation for f in favorites if f.recommendation]
+        return jsonify([
+            {
+                'id': r.id,
+                'name': r.title,
+                'location': r.location,
+                'category': r.category,
+                'description': r.description,
+                'hours': r.hours,
+                'image_url': r.image_url,
+                'avg_rating': r.avg_rating,
+                'contact': r.contact,
+                'reason': r.reason,
+                'author': r.author.username if r.author else 'Unknown',
+            }
+            for r in recs
+        ])
+    except Exception as e:
+        import traceback
+        app.logger.error(f'Favorites error: {str(e)}\n{traceback.format_exc()}')
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/favorites/check/<int:rec_id>', methods=['GET'])
 @jwt_required()
@@ -1119,10 +1124,60 @@ def api_remove_favorite(rec_id):
 @app.route('/api/users/<int:id>/profile', methods=['GET'])
 def api_get_user_profile(id):
     """Get public profile for any user"""
-    user = User.query.get_or_404(id)
-    recommendations = Recommendation.query.filter_by(user_id=id).all()
-    reviews = Review.query.filter_by(user_id=id).order_by(Review.created_at.desc()).all()
-    favorites_count = Favorite.query.filter_by(user_id=id).count()
+    try:
+        user = User.query.get_or_404(id)
+        recommendations = Recommendation.query.filter_by(user_id=id).all()
+        reviews = Review.query.filter_by(user_id=id).order_by(Review.created_at.desc()).all()
+        favorites_count = Favorite.query.filter_by(user_id=id).count()
+
+        return jsonify({
+            'id': user.id,
+            'username': user.username,
+            'name': user.name or user.username,
+            'role': user.role,
+            'bio': user.bio,
+            'avatar_url': user.avatar_url,
+            'created_at': user.created_at.isoformat() if user.created_at else None,
+            'recommendations_count': len(recommendations),
+            'reviews_count': len(reviews),
+            'favorites_count': favorites_count,
+            'recommendations': [
+                {
+                    'id': r.id,
+                    'name': r.title,
+                    'title': r.title,
+                    'category': r.category,
+                    'location': r.location,
+                    'image_url': r.image_url,
+                    'avg_rating': r.avg_rating,
+                }
+                for r in recommendations
+            ],
+            'reviews': [
+                {
+                    'id': rev.id,
+                    'rating': rev.rating,
+                    'comment': rev.comment,
+                    'recommendation_title': rev.recommendation.title if rev.recommendation else 'Unknown',
+                    'recommendation_id': rev.recommendation_id,
+                    'created_at': rev.created_at.isoformat() if rev.created_at else None,
+                }
+                for rev in reviews
+            ]
+        })
+    except Exception as e:
+        import traceback
+        app.logger.error(f'Profile error: {str(e)}\n{traceback.format_exc()}')
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/users/me', methods=['GET'])
+@jwt_required()
+def api_get_my_profile():
+    """Get current user's own profile"""
+    user_id = int(get_jwt_identity())
+    user = User.query.get_or_404(user_id)
+    recommendations = Recommendation.query.filter_by(user_id=user.id).all()
+    reviews = Review.query.filter_by(user_id=user.id).order_by(Review.created_at.desc()).all()
 
     return jsonify({
         'id': user.id,
@@ -1134,7 +1189,7 @@ def api_get_user_profile(id):
         'created_at': user.created_at.isoformat() if user.created_at else None,
         'recommendations_count': len(recommendations),
         'reviews_count': len(reviews),
-        'favorites_count': favorites_count,
+        'favorites_count': Favorite.query.filter_by(user_id=user.id).count(),
         'recommendations': [
             {
                 'id': r.id,
@@ -1160,69 +1215,51 @@ def api_get_user_profile(id):
         ]
     })
 
-@app.route('/api/users/me', methods=['GET'])
-@jwt_required()
-def api_get_my_profile():
-    """Get current user's own profile"""
-    user_id = int(get_jwt_identity())
-    user = User.query.get_or_404(user_id)
-    recommendations_count = Recommendation.query.filter_by(user_id=user.id).count()
-    reviews_count = Review.query.filter_by(user_id=user.id).count()
-    favorites_count = Favorite.query.filter_by(user_id=user.id).count()
-
-    return jsonify({
-        'id': user.id,
-        'username': user.username,
-        'name': user.name or user.username,
-        'role': user.role,
-        'bio': user.bio,
-        'avatar_url': user.avatar_url,
-        'created_at': user.created_at.isoformat() if user.created_at else None,
-        'recommendations_count': recommendations_count,
-        'reviews_count': reviews_count,
-        'favorites_count': favorites_count,
-    })
-
 @app.route('/api/users/me', methods=['PUT'])
 @jwt_required()
 def api_update_my_profile():
     """Update current user's profile (bio, avatar) - supports both JSON and FormData"""
-    user_id = int(get_jwt_identity())
-    user = User.query.get_or_404(user_id)
+    try:
+        user_id = int(get_jwt_identity())
+        user = User.query.get_or_404(user_id)
 
-    # FIXED: Handle both JSON and multipart form data (for avatar upload)
-    if request.content_type and 'multipart/form-data' in request.content_type:
-        # FormData upload
-        bio = request.form.get('bio', '')
-        if bio:
-            user.bio = bio[:500] if bio else None
+        # FIXED: Handle both JSON and multipart form data (for avatar upload)
+        if request.content_type and 'multipart/form-data' in request.content_type:
+            # FormData upload
+            bio = request.form.get('bio', '')
+            if bio:
+                user.bio = bio[:500] if bio else None
 
-        avatar_file = request.files.get('avatar')
-        if avatar_file and allowed_file(avatar_file.filename):
-            file_data = avatar_file.read()
-            base64_string = base64.b64encode(file_data).decode('utf-8')
-            ext = avatar_file.filename.rsplit('.', 1)[1].lower()
-            mime_types = {
-                'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
-                'gif': 'image/gif', 'webp': 'image/webp'
-            }
-            mime = mime_types.get(ext, 'image/jpeg')
-            user.avatar_url = f"data:{mime};base64,{base64_string}"
-    else:
-        # JSON upload
-        data = request.get_json() or {}
-        if 'bio' in data:
-            user.bio = data['bio'][:500] if data['bio'] else None
-        if 'avatar_url' in data:
-            user.avatar_url = data['avatar_url'] if data['avatar_url'] else None
+            avatar_file = request.files.get('avatar')
+            if avatar_file and allowed_file(avatar_file.filename):
+                file_data = avatar_file.read()
+                base64_string = base64.b64encode(file_data).decode('utf-8')
+                ext = avatar_file.filename.rsplit('.', 1)[1].lower()
+                mime_types = {
+                    'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+                    'gif': 'image/gif', 'webp': 'image/webp'
+                }
+                mime = mime_types.get(ext, 'image/jpeg')
+                user.avatar_url = f"data:{mime};base64,{base64_string}"
+        else:
+            # JSON upload
+            data = request.get_json() or {}
+            if 'bio' in data:
+                user.bio = data['bio'][:500] if data['bio'] else None
+            if 'avatar_url' in data:
+                user.avatar_url = data['avatar_url'] if data['avatar_url'] else None
 
-    db.session.commit()
-    return jsonify({
-        'message': 'Profile updated',
-        'bio': user.bio,
-        'avatar_url': user.avatar_url,
-        'name': user.name or user.username,
-    })
+        db.session.commit()
+        return jsonify({
+            'message': 'Profile updated',
+            'bio': user.bio,
+            'avatar_url': user.avatar_url,
+            'name': user.name or user.username,
+        })
+    except Exception as e:
+        import traceback
+        app.logger.error(f'Profile update error: {str(e)}\n{traceback.format_exc()}')
+        return jsonify({'error': str(e)}), 500
 
 # =========================================
 # NOTIFICATION API ROUTES
