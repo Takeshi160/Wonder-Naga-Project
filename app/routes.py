@@ -1,6 +1,6 @@
 from flask import render_template, request, jsonify, redirect, url_for, flash, send_from_directory
 from app import app, db
-from app.models import Place, Recommendation, User, Report, SubCategory, RecommendationImage
+from app.models import Place, Recommendation, User, Report, SubCategory, RecommendationImage, Review
 from app.forms import RecommendationForm, LoginForm, RegistrationForm
 from werkzeug.utils import secure_filename
 from flask_login import login_required, login_user, logout_user, current_user
@@ -810,6 +810,147 @@ def search():
                          q=q, 
                          category=category,
                          category_name=category.capitalize() if category else 'All')
+
+
+# =========================================
+# REVIEW API ROUTES (ratings & comments)
+# =========================================
+
+@app.route('/api/reviews/<int:recommendation_id>', methods=['GET'])
+def api_get_reviews(recommendation_id):
+    """Get all reviews for a recommendation + average rating"""
+    reviews = Review.query.filter_by(recommendation_id=recommendation_id).order_by(Review.created_at.desc()).all()
+    avg = db.session.query(db.func.avg(Review.rating)).filter_by(recommendation_id=recommendation_id).scalar()
+    return jsonify({
+        'reviews': [
+            {
+                'id': r.id,
+                'rating': r.rating,
+                'comment': r.comment,
+                'author': r.author.username if r.author else 'Unknown',
+                'user_id': r.user_id,
+                'created_at': r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in reviews
+        ],
+        'average_rating': round(float(avg), 1) if avg else None,
+        'total_reviews': len(reviews)
+    })
+
+@app.route('/api/reviews', methods=['POST'])
+@jwt_required()
+def api_add_review():
+    """Submit a new review (1 review per user per recommendation)"""
+    user_id = get_jwt_identity()
+    data = request.get_json()
+
+    recommendation_id = data.get('recommendation_id')
+    rating = data.get('rating')
+    comment = data.get('comment', '').strip()
+
+    if not recommendation_id or not rating:
+        return jsonify({'error': 'Recommendation ID and rating are required'}), 400
+
+    try:
+        rating = int(rating)
+        if rating < 1 or rating > 5:
+            return jsonify({'error': 'Rating must be between 1 and 5'}), 400
+    except ValueError:
+        return jsonify({'error': 'Rating must be a number'}), 400
+
+    # Check if user already reviewed this recommendation
+    existing = Review.query.filter_by(recommendation_id=recommendation_id, user_id=user_id).first()
+    if existing:
+        return jsonify({'error': 'You have already reviewed this place'}), 400
+
+    review = Review(
+        recommendation_id=recommendation_id,
+        user_id=user_id,
+        rating=rating,
+        comment=comment if comment else None
+    )
+    db.session.add(review)
+    db.session.commit()
+
+    # Update the recommendation's avg_rating
+    avg = db.session.query(db.func.avg(Review.rating)).filter_by(recommendation_id=recommendation_id).scalar()
+    rec = Recommendation.query.get(recommendation_id)
+    if rec and avg:
+        rec.avg_rating = round(float(avg), 1)
+        db.session.commit()
+
+    return jsonify({
+        'message': 'Review submitted successfully',
+        'review_id': review.id,
+        'average_rating': rec.avg_rating if rec else None
+    })
+
+@app.route('/api/reviews/<int:review_id>', methods=['PUT'])
+@jwt_required()
+def api_update_review(review_id):
+    """Edit your own review"""
+    user_id = get_jwt_identity()
+    review = Review.query.get_or_404(review_id)
+
+    if review.user_id != int(user_id):
+        return jsonify({'error': 'Not authorized to edit this review'}), 403
+
+    data = request.get_json()
+    rating = data.get('rating')
+    comment = data.get('comment', '').strip()
+
+    if rating:
+        try:
+            rating = int(rating)
+            if rating < 1 or rating > 5:
+                return jsonify({'error': 'Rating must be between 1 and 5'}), 400
+            review.rating = rating
+        except ValueError:
+            return jsonify({'error': 'Rating must be a number'}), 400
+
+    if comment:
+        review.comment = comment
+
+    db.session.commit()
+
+    # Update average
+    avg = db.session.query(db.func.avg(Review.rating)).filter_by(recommendation_id=review.recommendation_id).scalar()
+    rec = Recommendation.query.get(review.recommendation_id)
+    if rec and avg:
+        rec.avg_rating = round(float(avg), 1)
+        db.session.commit()
+
+    return jsonify({
+        'message': 'Review updated',
+        'average_rating': rec.avg_rating if rec else None
+    })
+
+@app.route('/api/reviews/<int:review_id>', methods=['DELETE'])
+@jwt_required()
+def api_delete_review(review_id):
+    """Delete your own review (or admin can delete any)"""
+    user_id = get_jwt_identity()
+    user = User.query.get(int(user_id))
+    review = Review.query.get_or_404(review_id)
+
+    if review.user_id != int(user_id) and user.role != 'admin':
+        return jsonify({'error': 'Not authorized to delete this review'}), 403
+
+    rec_id = review.recommendation_id
+    db.session.delete(review)
+    db.session.commit()
+
+    # Update average
+    avg = db.session.query(db.func.avg(Review.rating)).filter_by(recommendation_id=rec_id).scalar()
+    rec = Recommendation.query.get(rec_id)
+    if rec:
+        rec.avg_rating = round(float(avg), 1) if avg else 5
+        db.session.commit()
+
+    return jsonify({
+        'message': 'Review deleted',
+        'average_rating': rec.avg_rating if rec else None
+    })
 
 # =========================================
 # OLD API ROUTES (KEEP FOR BACKWARD COMPATIBILITY)
