@@ -4,7 +4,7 @@
 
 {% block content %}
 
-{% if not current_user.is_authenticated or current_user.role != 'admin' %}
+{% if not current_user or current_user.role != 'admin' %}
 
 <div class="state-box">
   <div class="state-icon">🔒</div>
@@ -46,7 +46,7 @@
     {% for report in pending_reports %}
     <div class="report-item">
       <strong>{{ report.reporter.username }}</strong> reported
-      <strong>{{ report.store.title }}</strong> —
+      <strong>{{ report.reported_rec.title }}</strong> —
       {{ report.reason }}
       <span style="color: var(--muted); font-size:11px; margin-left:8px;">
         {{ report.created_at.strftime('%b %d, %Y') if report.created_at else '' }}
@@ -55,7 +55,7 @@
         <form action="{{ url_for('admin_dismiss_report', report_id=report.id) }}" method="POST" style="display:inline;">
     <button type="submit" class="btn-action btn-edit-sm">✓ Dismiss</button>
 </form>
-<form action="{{ url_for('admin_delete_rec', id=report.store.id) }}" method="POST" style="display:inline;">
+<form action="{{ url_for('admin_delete_rec', id=report.reported_rec.id) }}" method="POST" style="display:inline;">
     <button type="submit" class="btn-action btn-delete" onclick="return confirm('Delete store and dismiss report?')">🗑 Delete Store</button>
 </form>
       </div>
@@ -149,7 +149,7 @@
           <td>{{ s.author.username if s.author else '—' }}</td>
           <td class="action-cell">
     <a href="{{ url_for('store_detail', id=s.id) }}" class="btn-action btn-view-sm">👁 View</a>
-    <a href="{{ url_for('edit_rec', id=s.id) }}" class="btn-action btn-edit-sm">✏ Edit</a>
+    <a href="/?edit={{ s.id }}" class="btn-action btn-edit-sm">✏ Edit</a>
     <form action="{{ url_for('admin_delete_rec', id=s.id) }}" method="POST" style="display:inline;">
         <button type="submit" class="btn-action btn-delete" onclick="return confirm('Delete {{ s.title }}?')">🗑 Delete</button>
     </form>
