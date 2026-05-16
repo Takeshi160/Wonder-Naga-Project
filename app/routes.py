@@ -75,6 +75,19 @@ def get_current_user_for_template():
         pass
     return None
 
+def create_notification(user_id, message, type='general', link=None):
+    """Helper to create a notification"""
+    notif = Notification(
+        user_id=user_id,
+        message=message,
+        type=type,
+        link=link,
+        is_read=False
+    )
+    db.session.add(notif)
+    db.session.commit()
+    return notif
+
 # =========================================
 # AUTH API ROUTES (FOR VUE APP)
 # =========================================
@@ -94,7 +107,7 @@ def api_login():
             'token': token,
             'id': user.id,
             'username': user.username,
-            'name': user.username,
+            'name': user.name or user.username,  # FIXED: use user.name if exists
             'role': user.role
         })
 
@@ -113,6 +126,7 @@ def api_register():
     user = User(
         username=username,
         password=generate_password_hash(password),
+        name=name,  # FIXED: save name to DB
         role='user'
     )
     db.session.add(user)
@@ -125,7 +139,7 @@ def api_register():
         'token': token,
         'id': user.id,
         'username': user.username,
-        'name': name or username,
+        'name': user.name or username,
         'role': user.role
     })
 
@@ -144,6 +158,7 @@ def api_me():
     return jsonify({
         'id': user.id,
         'username': user.username,
+        'name': user.name or user.username,
         'role': user.role
     })
 
@@ -198,11 +213,17 @@ def api_top_stores():
         for r in recs
     ])
 
+# =========================================
+# MERGED /api/stores - handles ALL params
+# =========================================
 @app.route('/api/stores', methods=['GET'])
 def api_stores():
+    """Get stores with filtering, search, min_rating, and sorting"""
     category = request.args.get('category', '')
     search = request.args.get('search', '')
     sub_category = request.args.get('sub_category', '')
+    min_rating = request.args.get('min_rating', '')
+    sort_by = request.args.get('sort_by', '')  # 'newest', 'rating_desc', 'rating_asc', 'name'
 
     query = Recommendation.query
 
@@ -218,6 +239,22 @@ def api_stores():
             Recommendation.description.ilike(f"%{search}%") |
             Recommendation.location.ilike(f"%{search}%")
         )
+
+    if min_rating:
+        try:
+            query = query.filter(Recommendation.avg_rating >= float(min_rating))
+        except ValueError:
+            pass
+
+    # FIXED: Handle all sort_by values from frontend
+    if sort_by == 'newest':
+        query = query.order_by(Recommendation.created_at.desc())
+    elif sort_by == 'rating_desc':
+        query = query.order_by(Recommendation.avg_rating.desc())
+    elif sort_by == 'rating_asc':
+        query = query.order_by(Recommendation.avg_rating.asc())
+    elif sort_by == 'name':
+        query = query.order_by(Recommendation.title.asc())
 
     recs = query.all()
     return jsonify([
@@ -500,6 +537,16 @@ def api_dismiss_report(id):
     report = Report.query.get_or_404(id)
     report.status = 'dismissed'
     db.session.commit()
+
+    # Notify reporter
+    if report.reporter_id:
+        create_notification(
+            report.reporter_id,
+            f"Your report on '{report.reported_rec.title if report.reported_rec else 'a store'}' was dismissed.",
+            type='report',
+            link=f"/store/{report.store_id}"
+        )
+
     return jsonify({'message': 'Report dismissed'})
 
 @app.route('/api/reports/<int:id>/resolve', methods=['POST'])
@@ -509,6 +556,16 @@ def api_resolve_report(id):
     report = Report.query.get_or_404(id)
     report.status = 'resolved'
     db.session.commit()
+
+    # Notify reporter
+    if report.reporter_id:
+        create_notification(
+            report.reporter_id,
+            f"Your report on '{report.reported_rec.title if report.reported_rec else 'a store'}' was resolved.",
+            type='report',
+            link=f"/store/{report.store_id}"
+        )
+
     return jsonify({'message': 'Report resolved'})
 
 # =========================================
@@ -571,6 +628,14 @@ def api_promote_user(id):
     user = User.query.get_or_404(id)
     user.role = 'admin'
     db.session.commit()
+
+    # Notify user
+    create_notification(
+        user.id,
+        "You have been promoted to Admin!",
+        type='admin'
+    )
+
     return jsonify({'message': f'User {user.username} promoted to admin'})
 
 @app.route('/api/admin/users/<int:id>/demote', methods=['POST'])
@@ -879,6 +944,15 @@ def api_add_review():
         rec.avg_rating = round(float(avg), 1)
         db.session.commit()
 
+    # FIXED: Notify the recommendation owner
+    if rec and rec.user_id and int(rec.user_id) != int(user_id):
+        create_notification(
+            rec.user_id,
+            f"{User.query.get(int(user_id)).username if User.query.get(int(user_id)) else 'Someone'} reviewed your place '{rec.title}'",
+            type='review',
+            link=f"/store/{rec.id}"
+        )
+
     return jsonify({
         'message': 'Review submitted successfully',
         'review_id': review.id,
@@ -1032,19 +1106,23 @@ def api_get_user_profile(id):
     user = User.query.get_or_404(id)
     recommendations = Recommendation.query.filter_by(user_id=id).all()
     reviews = Review.query.filter_by(user_id=id).order_by(Review.created_at.desc()).all()
+    favorites_count = Favorite.query.filter_by(user_id=id).count()
 
     return jsonify({
         'id': user.id,
         'username': user.username,
+        'name': user.name or user.username,
         'role': user.role,
         'bio': user.bio,
         'avatar_url': user.avatar_url,
         'created_at': user.created_at.isoformat() if user.created_at else None,
-        'recommendation_count': len(recommendations),
-        'review_count': len(reviews),
+        'recommendations_count': len(recommendations),
+        'reviews_count': len(reviews),
+        'favorites_count': favorites_count,
         'recommendations': [
             {
                 'id': r.id,
+                'name': r.title,
                 'title': r.title,
                 'category': r.category,
                 'location': r.location,
@@ -1072,53 +1150,67 @@ def api_get_my_profile():
     """Get current user's own profile"""
     user_id = get_jwt_identity()
     user = User.query.get_or_404(int(user_id))
+    recommendations_count = Recommendation.query.filter_by(user_id=user.id).count()
+    reviews_count = Review.query.filter_by(user_id=user.id).count()
+    favorites_count = Favorite.query.filter_by(user_id=user.id).count()
+
     return jsonify({
         'id': user.id,
         'username': user.username,
+        'name': user.name or user.username,
         'role': user.role,
         'bio': user.bio,
         'avatar_url': user.avatar_url,
         'created_at': user.created_at.isoformat() if user.created_at else None,
+        'recommendations_count': recommendations_count,
+        'reviews_count': reviews_count,
+        'favorites_count': favorites_count,
     })
 
 @app.route('/api/users/me', methods=['PUT'])
 @jwt_required()
 def api_update_my_profile():
-    """Update current user's profile (bio, avatar)"""
+    """Update current user's profile (bio, avatar) - supports both JSON and FormData"""
     user_id = get_jwt_identity()
     user = User.query.get_or_404(int(user_id))
 
-    data = request.get_json()
+    # FIXED: Handle both JSON and multipart form data (for avatar upload)
+    if request.content_type and 'multipart/form-data' in request.content_type:
+        # FormData upload
+        bio = request.form.get('bio', '')
+        if bio:
+            user.bio = bio[:500] if bio else None
 
-    if 'bio' in data:
-        user.bio = data['bio'][:500] if data['bio'] else None  # max 500 chars
-
-    if 'avatar_url' in data:
-        user.avatar_url = data['avatar_url'] if data['avatar_url'] else None
+        avatar_file = request.files.get('avatar')
+        if avatar_file and allowed_file(avatar_file.filename):
+            file_data = avatar_file.read()
+            base64_string = base64.b64encode(file_data).decode('utf-8')
+            ext = avatar_file.filename.rsplit('.', 1)[1].lower()
+            mime_types = {
+                'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+                'gif': 'image/gif', 'webp': 'image/webp'
+            }
+            mime = mime_types.get(ext, 'image/jpeg')
+            user.avatar_url = f"data:{mime};base64,{base64_string}"
+    else:
+        # JSON upload
+        data = request.get_json() or {}
+        if 'bio' in data:
+            user.bio = data['bio'][:500] if data['bio'] else None
+        if 'avatar_url' in data:
+            user.avatar_url = data['avatar_url'] if data['avatar_url'] else None
 
     db.session.commit()
     return jsonify({
         'message': 'Profile updated',
         'bio': user.bio,
         'avatar_url': user.avatar_url,
+        'name': user.name or user.username,
     })
 
 # =========================================
 # NOTIFICATION API ROUTES
 # =========================================
-
-def create_notification(user_id, message, type='general', link=None):
-    """Helper to create a notification"""
-    notif = Notification(
-        user_id=user_id,
-        message=message,
-        type=type,
-        link=link,
-        is_read=False
-    )
-    db.session.add(notif)
-    db.session.commit()
-    return notif
 
 @app.route('/api/notifications', methods=['GET'])
 @jwt_required()
@@ -1134,6 +1226,8 @@ def api_get_notifications():
             'link': n.link,
             'is_read': n.is_read,
             'created_at': n.created_at.isoformat() if n.created_at else None,
+            'recommendation_id': n.link.split('/')[-1] if n.link and '/store/' in n.link else None,
+            'recommendation_name': None,  # Can be enriched if needed
         }
         for n in notifs
     ])
@@ -1144,7 +1238,7 @@ def api_get_unread_count():
     """Get count of unread notifications"""
     user_id = get_jwt_identity()
     count = Notification.query.filter_by(user_id=user_id, is_read=False).count()
-    return jsonify({'unread_count': count})
+    return jsonify({'count': count})
 
 @app.route('/api/notifications/<int:id>/read', methods=['POST'])
 @jwt_required()
@@ -1169,69 +1263,6 @@ def api_mark_all_read():
     db.session.commit()
     return jsonify({'message': 'All marked as read'})
 
-# =========================================
-# ENHANCED SEARCH & FILTER API
-# =========================================
-
-@app.route('/api/stores', methods=['GET'])
-def api_stores():
-    category = request.args.get('category', '')
-    search = request.args.get('search', '')
-    sub_category = request.args.get('sub_category', '')
-    min_rating = request.args.get('min_rating', '')
-    sort_by = request.args.get('sort_by', '')  # 'newest', 'rating', 'name'
-
-    query = Recommendation.query
-
-    if category:
-        query = query.filter_by(category=category)
-
-    if sub_category:
-        query = query.filter_by(sub_category_id=sub_category)
-
-    if search:
-        query = query.filter(
-            Recommendation.title.ilike(f"%{search}%") | 
-            Recommendation.description.ilike(f"%{search}%") |
-            Recommendation.location.ilike(f"%{search}%")
-        )
-
-    if min_rating:
-        try:
-            query = query.filter(Recommendation.avg_rating >= float(min_rating))
-        except ValueError:
-            pass
-
-    # Sorting
-    if sort_by == 'newest':
-        query = query.order_by(Recommendation.created_at.desc())
-    elif sort_by == 'rating':
-        query = query.order_by(Recommendation.avg_rating.desc())
-    elif sort_by == 'name':
-        query = query.order_by(Recommendation.title.asc())
-    # default: no specific order
-
-    recs = query.all()
-    return jsonify([
-        {
-            'id': r.id,
-            'name': r.title,
-            'location': r.location,
-            'category': r.category,
-            'description': r.description,
-            'hours': r.hours,
-            'image_url': r.image_url,
-            'avg_rating': r.avg_rating,
-            'contact': r.contact,
-            'reason': r.reason,
-            'author': r.author.username if r.author else 'Unknown',
-            'sub_category': {
-                'name': r.sub_category.name,
-                'icon': r.sub_category.icon
-            } if r.sub_category else None
-        }
-        for r in recs
-    ])
 
 # =========================================
 # OLD API ROUTES (KEEP FOR BACKWARD COMPATIBILITY)
