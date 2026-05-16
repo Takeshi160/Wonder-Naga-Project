@@ -652,7 +652,7 @@ def api_demote_user(id):
 @admin_required
 def api_delete_user(id):
     user = User.query.get_or_404(id)
-    if user.id == get_jwt_identity():
+    if user.id == int(get_jwt_identity()):
         return jsonify({'error': 'Cannot delete yourself'}), 400
     db.session.delete(user)
     db.session.commit()
@@ -906,7 +906,7 @@ def api_get_reviews(recommendation_id):
 @jwt_required()
 def api_add_review():
     """Submit a new review (1 review per user per recommendation)"""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     data = request.get_json()
 
     recommendation_id = data.get('recommendation_id')
@@ -945,7 +945,7 @@ def api_add_review():
         db.session.commit()
 
     # FIXED: Notify the recommendation owner
-    if rec and rec.user_id and int(rec.user_id) != int(user_id):
+    if rec and rec.user_id and rec.user_id != user_id:
         create_notification(
             rec.user_id,
             f"{User.query.get(int(user_id)).username if User.query.get(int(user_id)) else 'Someone'} reviewed your place '{rec.title}'",
@@ -963,10 +963,10 @@ def api_add_review():
 @jwt_required()
 def api_update_review(review_id):
     """Edit your own review"""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     review = Review.query.get_or_404(review_id)
 
-    if review.user_id != int(user_id):
+    if review.user_id != user_id:
         return jsonify({'error': 'Not authorized to edit this review'}), 403
 
     data = request.get_json()
@@ -1003,11 +1003,11 @@ def api_update_review(review_id):
 @jwt_required()
 def api_delete_review(review_id):
     """Delete your own review (or admin can delete any)"""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(int(user_id))
     review = Review.query.get_or_404(review_id)
 
-    if review.user_id != int(user_id) and user.role != 'admin':
+    if review.user_id != user_id and user.role != 'admin':
         return jsonify({'error': 'Not authorized to delete this review'}), 403
 
     rec_id = review.recommendation_id
@@ -1035,7 +1035,7 @@ def api_delete_review(review_id):
 @jwt_required()
 def api_get_favorites():
     """Get current user's favorited recommendations"""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     favorites = Favorite.query.filter_by(user_id=user_id).all()
     recs = [f.recommendation for f in favorites if f.recommendation]
     return jsonify([
@@ -1059,7 +1059,7 @@ def api_get_favorites():
 @jwt_required()
 def api_check_favorite(rec_id):
     """Check if current user has favorited a recommendation"""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     fav = Favorite.query.filter_by(user_id=user_id, recommendation_id=rec_id).first()
     return jsonify({'is_favorite': fav is not None})
 
@@ -1067,7 +1067,7 @@ def api_check_favorite(rec_id):
 @jwt_required()
 def api_add_favorite():
     """Add a recommendation to favorites"""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     data = request.get_json()
     rec_id = data.get('recommendation_id')
 
@@ -1087,7 +1087,7 @@ def api_add_favorite():
 @jwt_required()
 def api_remove_favorite(rec_id):
     """Remove a recommendation from favorites"""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     fav = Favorite.query.filter_by(user_id=user_id, recommendation_id=rec_id).first()
     if not fav:
         return jsonify({'error': 'Not in favorites'}), 404
@@ -1148,8 +1148,8 @@ def api_get_user_profile(id):
 @jwt_required()
 def api_get_my_profile():
     """Get current user's own profile"""
-    user_id = get_jwt_identity()
-    user = User.query.get_or_404(int(user_id))
+    user_id = int(get_jwt_identity())
+    user = User.query.get_or_404(user_id)
     recommendations_count = Recommendation.query.filter_by(user_id=user.id).count()
     reviews_count = Review.query.filter_by(user_id=user.id).count()
     favorites_count = Favorite.query.filter_by(user_id=user.id).count()
@@ -1171,8 +1171,8 @@ def api_get_my_profile():
 @jwt_required()
 def api_update_my_profile():
     """Update current user's profile (bio, avatar) - supports both JSON and FormData"""
-    user_id = get_jwt_identity()
-    user = User.query.get_or_404(int(user_id))
+    user_id = int(get_jwt_identity())
+    user = User.query.get_or_404(user_id)
 
     # FIXED: Handle both JSON and multipart form data (for avatar upload)
     if request.content_type and 'multipart/form-data' in request.content_type:
@@ -1216,7 +1216,7 @@ def api_update_my_profile():
 @jwt_required()
 def api_get_notifications():
     """Get current user's notifications"""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     notifs = Notification.query.filter_by(user_id=user_id).order_by(Notification.created_at.desc()).all()
     return jsonify([
         {
@@ -1236,7 +1236,7 @@ def api_get_notifications():
 @jwt_required()
 def api_get_unread_count():
     """Get count of unread notifications"""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     count = Notification.query.filter_by(user_id=user_id, is_read=False).count()
     return jsonify({'count': count})
 
@@ -1244,10 +1244,10 @@ def api_get_unread_count():
 @jwt_required()
 def api_mark_notification_read(id):
     """Mark a notification as read"""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     notif = Notification.query.get_or_404(id)
 
-    if notif.user_id != int(user_id):
+    if notif.user_id != user_id:
         return jsonify({'error': 'Not authorized'}), 403
 
     notif.is_read = True
@@ -1258,7 +1258,7 @@ def api_mark_notification_read(id):
 @jwt_required()
 def api_mark_all_read():
     """Mark all notifications as read"""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     Notification.query.filter_by(user_id=user_id, is_read=False).update({'is_read': True})
     db.session.commit()
     return jsonify({'message': 'All marked as read'})
