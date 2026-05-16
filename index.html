@@ -353,6 +353,65 @@
 
     .fade-enter-active, .fade-leave-active { transition: opacity .18s ease; }
     .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+    /* ── STAR RATING ── */
+    .star-rating { display: flex; gap: 4px; font-size: 28px; cursor: pointer; }
+    .star-rating .star { color: var(--border); transition: color .15s; }
+    .star-rating .star.filled { color: var(--accent); }
+    .star-rating .star:hover { color: var(--accent2); }
+    .star-rating.readonly { cursor: default; pointer-events: none; }
+    .star-rating.readonly .star:hover { color: inherit; }
+
+    /* ── REVIEW FORM ── */
+    .review-form {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px; margin-bottom: 20px;
+    }
+    .review-form-title { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 600; margin-bottom: 14px; }
+    .review-form-label { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; display: block; }
+    .review-textarea {
+      width: 100%; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 9px; padding: 12px 14px; color: var(--text);
+      font-size: 13.5px; font-family: 'DM Sans', sans-serif;
+      outline: none; resize: vertical; min-height: 80px; margin-bottom: 14px;
+    }
+    .review-textarea:focus { border-color: var(--accent); }
+    .review-submit {
+      padding: 10px 24px; background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none; border-radius: 9px; color: #1a1200;
+      font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: opacity .2s;
+    }
+    .review-submit:hover { opacity: .88; }
+    .review-submit:disabled { opacity: .4; cursor: not-allowed; }
+    .review-error { font-size: 12px; color: var(--danger); margin-top: 8px; }
+    .review-success { font-size: 12px; color: var(--success); margin-top: 8px; }
+
+    /* ── REVIEW LIST ── */
+    .review-item {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 16px; margin-bottom: 10px;
+    }
+    .review-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .review-author { font-size: 13px; color: var(--accent); font-weight: 500; }
+    .review-date { font-size: 11px; color: var(--muted); }
+    .review-stars { font-size: 14px; margin-bottom: 6px; }
+    .review-comment { font-size: 13px; color: var(--text); line-height: 1.5; }
+    .review-actions { display: flex; gap: 8px; margin-top: 10px; }
+    .review-actions button {
+      padding: 4px 10px; border-radius: 6px; font-size: 11px;
+      cursor: pointer; border: none; font-family: 'DM Sans', sans-serif;
+      transition: opacity .15s;
+    }
+    .review-actions button:hover { opacity: .8; }
+    .btn-edit-review { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-delete-review { background: rgba(224,92,92,.15); color: var(--danger); }
+
+    .avg-rating-big {
+      font-size: 42px; font-family: 'Playfair Display', serif; color: var(--accent); margin-bottom: 4px;
+    }
+    .avg-rating-stars { font-size: 20px; margin-bottom: 12px; }
+    .total-reviews-text { font-size: 12px; color: var(--muted); margin-bottom: 20px; }
   </style>
 <base target="_blank">
 </head>
@@ -577,14 +636,80 @@
                   </div>
                   <div>
                     <div class="detail-block-title">Ratings &amp; Comments</div>
-                    <div class="avg-rating">★ {{ storeDetail.avg_rating ?? '—' }}</div>
-                    <div v-if="storeDetail.reviews && storeDetail.reviews.length" class="review-list">
-                      <div class="review-card" v-for="r in storeDetail.reviews" :key="r.id">
-                        <div class="review-author">{{ r.author }}</div>
-                        <div class="review-text">{{ r.text }}</div>
+
+                    <!-- Average Rating Display -->
+                    <div class="avg-rating-big">{{ reviewData.average_rating ?? storeDetail.avg_rating ?? '—' }}</div>
+                    <div class="avg-rating-stars">
+                      <span v-for="n in 5" :key="n" :style="{ color: (reviewData.average_rating ?? storeDetail.avg_rating ?? 0) >= n ? 'var(--accent)' : 'var(--border)' }">★</span>
+                    </div>
+                    <div class="total-reviews-text">{{ reviewData.total_reviews || 0 }} review{{ (reviewData.total_reviews || 0) === 1 ? '' : 's' }}</div>
+
+                    <!-- Review Form (logged in users only) -->
+                    <div v-if="loggedIn && !userReview" class="review-form">
+                      <div class="review-form-title">Write a Review</div>
+                      <div class="review-form-label">Your Rating</div>
+                      <div class="star-rating" @mouseleave="hoverRating = 0">
+                        <span v-for="n in 5" :key="n" 
+                              class="star" 
+                              :class="{ filled: (hoverRating || newReview.rating) >= n }"
+                              @mouseover="hoverRating = n"
+                              @click="newReview.rating = n">★</span>
+                      </div>
+                      <div class="review-form-label" style="margin-top:12px;">Your Comment (optional)</div>
+                      <textarea class="review-textarea" v-model="newReview.comment" placeholder="Share your experience…"></textarea>
+                      <button class="review-submit" :disabled="!newReview.rating || reviewSubmitting" @click="submitReview">
+                        <span v-if="reviewSubmitting" class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px;"></span>
+                        Submit Review
+                      </button>
+                      <div v-if="reviewError" class="review-error">{{ reviewError }}</div>
+                      <div v-if="reviewSuccess" class="review-success">{{ reviewSuccess }}</div>
+                    </div>
+
+                    <!-- User's existing review (with edit/delete) -->
+                    <div v-if="userReview" class="review-form">
+                      <div class="review-form-title">Your Review</div>
+                      <div class="star-rating readonly">
+                        <span v-for="n in 5" :key="n" class="star" :class="{ filled: userReview.rating >= n }">★</span>
+                      </div>
+                      <div v-if="userReview.comment" class="review-comment" style="margin-top:8px;">{{ userReview.comment }}</div>
+                      <div class="review-actions">
+                        <button class="btn-edit-review" @click="startEditReview">✎ Edit</button>
+                        <button class="btn-delete-review" @click="deleteReview(userReview.id)">🗑 Delete</button>
                       </div>
                     </div>
-                    <div v-else style="color:var(--muted);font-size:13px;">No reviews yet.</div>
+
+                    <!-- Edit Review Form -->
+                    <div v-if="editingReview" class="review-form">
+                      <div class="review-form-title">Edit Your Review</div>
+                      <div class="star-rating" @mouseleave="hoverRating = 0">
+                        <span v-for="n in 5" :key="n" 
+                              class="star" 
+                              :class="{ filled: (hoverRating || editReviewData.rating) >= n }"
+                              @mouseover="hoverRating = n"
+                              @click="editReviewData.rating = n">★</span>
+                      </div>
+                      <textarea class="review-textarea" v-model="editReviewData.comment" placeholder="Update your comment…"></textarea>
+                      <div style="display:flex; gap:8px;">
+                        <button class="review-submit" :disabled="!editReviewData.rating || reviewSubmitting" @click="updateReview">Save Changes</button>
+                        <button class="btn-cancel" @click="cancelEditReview">Cancel</button>
+                      </div>
+                      <div v-if="reviewError" class="review-error">{{ reviewError }}</div>
+                    </div>
+
+                    <!-- All Reviews List -->
+                    <div v-if="reviewData.reviews && reviewData.reviews.length">
+                      <div class="review-item" v-for="r in reviewData.reviews" :key="r.id">
+                        <div class="review-header">
+                          <span class="review-author">{{ r.author }}</span>
+                          <span class="review-date">{{ formatDate(r.created_at) }}</span>
+                        </div>
+                        <div class="review-stars">
+                          <span v-for="n in 5" :key="n" :style="{ color: r.rating >= n ? 'var(--accent)' : 'var(--border)' }">★</span>
+                        </div>
+                        <div v-if="r.comment" class="review-comment">{{ r.comment }}</div>
+                      </div>
+                    </div>
+                    <div v-else-if="!userReview && !editingReview" style="color:var(--muted);font-size:13px;">No reviews yet. Be the first to review!</div>
                   </div>
                 </div>
               </template>
@@ -759,6 +884,10 @@ const API = (() => {
     promoteUser: id           => req('POST', `/admin/users/${id}/promote`),
     deleteUser: id            => req('DELETE', `/admin/users/${id}`),
     getCategories: ()         => req('GET', '/categories'),
+    getReviews: (id)          => req('GET', `/reviews/${id}`),
+    addReview: (body)         => req('POST', '/reviews', body),
+    updateReview: (id, body)  => req('PUT', `/reviews/${id}`, body),
+    deleteReview: (id)        => req('DELETE', `/reviews/${id}`),
   };
 })();
 
@@ -980,7 +1109,10 @@ createApp({
 
     async function fetchStoreDetail(id) {
       loadingStore.value = true; errorStore.value = null;
-      try { storeDetail.value = await API.getStore(id); }
+      try { 
+        storeDetail.value = await API.getStore(id);
+        await fetchReviews(id);
+      }
       catch(e) { errorStore.value = e.message; }
       finally { loadingStore.value = false; }
     }
@@ -1140,6 +1272,104 @@ createApp({
       }
     }
 
+    // ── REVIEWS ──
+    const reviewData    = ref({ reviews: [], average_rating: null, total_reviews: 0 });
+    const newReview     = ref({ rating: 0, comment: '' });
+    const hoverRating   = ref(0);
+    const reviewSubmitting = ref(false);
+    const reviewError   = ref(null);
+    const reviewSuccess = ref(null);
+    const userReview    = ref(null);
+    const editingReview = ref(false);
+    const editReviewData = ref({ rating: 0, comment: '' });
+
+    async function fetchReviews(recId) {
+      try {
+        const data = await API.getReviews(recId);
+        reviewData.value = data;
+        // Find the current user's review
+        if (currentUser.value && data.reviews) {
+          userReview.value = data.reviews.find(r => r.user_id === currentUser.value.id) || null;
+        }
+      } catch(e) {
+        console.error('Failed to fetch reviews:', e);
+      }
+    }
+
+    async function submitReview() {
+      reviewError.value = null;
+      reviewSuccess.value = null;
+      if (!newReview.value.rating) {
+        reviewError.value = 'Please select a star rating.';
+        return;
+      }
+      reviewSubmitting.value = true;
+      try {
+        const data = await API.addReview({
+          recommendation_id: selectedStore.value.id,
+          rating: newReview.value.rating,
+          comment: newReview.value.comment,
+        });
+        reviewSuccess.value = 'Review submitted!';
+        newReview.value = { rating: 0, comment: '' };
+        hoverRating.value = 0;
+        await fetchReviews(selectedStore.value.id);
+        // Refresh store detail to show updated avg_rating
+        await fetchStoreDetail(selectedStore.value.id);
+      } catch(e) {
+        reviewError.value = e.message;
+      } finally {
+        reviewSubmitting.value = false;
+      }
+    }
+
+    function startEditReview() {
+      if (!userReview.value) return;
+      editingReview.value = true;
+      editReviewData.value = {
+        rating: userReview.value.rating,
+        comment: userReview.value.comment || '',
+      };
+    }
+
+    function cancelEditReview() {
+      editingReview.value = false;
+      editReviewData.value = { rating: 0, comment: '' };
+      hoverRating.value = 0;
+      reviewError.value = null;
+    }
+
+    async function updateReview() {
+      reviewError.value = null;
+      if (!userReview.value) return;
+      reviewSubmitting.value = true;
+      try {
+        await API.updateReview(userReview.value.id, {
+          rating: editReviewData.value.rating,
+          comment: editReviewData.value.comment,
+        });
+        editingReview.value = false;
+        await fetchReviews(selectedStore.value.id);
+        await fetchStoreDetail(selectedStore.value.id);
+      } catch(e) {
+        reviewError.value = e.message;
+      } finally {
+        reviewSubmitting.value = false;
+      }
+    }
+
+    async function deleteReview(reviewId) {
+      if (!confirm('Delete your review?')) return;
+      try {
+        await API.deleteReview(reviewId);
+        userReview.value = null;
+        await fetchReviews(selectedStore.value.id);
+        await fetchStoreDetail(selectedStore.value.id);
+      } catch(e) {
+        alert('Failed to delete review: ' + e.message);
+      }
+    }
+
     function formatDate(d) {
       if (!d) return '—';
       return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -1157,6 +1387,10 @@ createApp({
       onFiles, removeImg, submitRec, clearAddForm, editRec, deleteRec, canEdit,
       adminStats, adminUsers, adminStores, loadingAdmin, fetchAdminData, promoteUser, deleteUser, formatDate,
       resolveImg,
+      // reviews
+      reviewData, newReview, hoverRating, reviewSubmitting, reviewError, reviewSuccess,
+      userReview, editingReview, editReviewData,
+      fetchReviews, submitReview, startEditReview, cancelEditReview, updateReview, deleteReview,
     };
   }
 }).mount('#app');
